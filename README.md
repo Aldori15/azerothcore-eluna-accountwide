@@ -18,5 +18,5 @@
 
 # Setup
 
-- Copy the lua_scripts folder into the lua_scripts folder on your server.
+- Copy the "AccountWide" folder into the lua_scripts folder on your server.
 - If you're server is already running, type ".reload eluna" in the worldserver window.  Otherwise just start up the server.
