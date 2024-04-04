@@ -1,11 +1,11 @@
 # ![logo](https://raw.githubusercontent.com/azerothcore/azerothcore.github.io/master/images/logo-github.png) AzerothCore
 
-# Accountwide Systems
+# Accountwide Systems Using Eluna
 
 ### Description
 
 	Since I mainly use a repack instead of compiling with C++, here is my implementation approach
-	to things Accountwide.
+	to things Accountwide with Eluna.  You will need Eluna set up on your server for these scripts to work.
 
 	Here are the Accountwide Lua Scripts that are included in this project:
 	- Achievements
