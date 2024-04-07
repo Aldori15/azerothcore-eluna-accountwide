@@ -6,7 +6,7 @@ local ENABLE_ACCOUNTWIDE_ACHIEVEMENTS = false
 local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achievements |rmodule."
 
-local RESTRICT_FACTION = false  -- Set this to true to only share achievements with characters of the same faction.  For factionless, I'd recommend keeping this set to false.
+local RESTRICT_FACTION = false  -- Set this to true to only share achievements with characters of the same faction.
 
 -- ---------------------------------------------------------------------------------------------
 -- -- END CONFIG
