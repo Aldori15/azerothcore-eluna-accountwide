@@ -48,6 +48,7 @@ local function SyncAchievementsOnLogin(event, player)
                     [16] = true, -- Worgen
                     [19] = true, -- Lightforged
                     [20] = true, -- Demon Hunter
+                    -- Add or remove races as needed based on your server.  The value comes from ChrRaces.dbc
                 }
                 local hordeRaces = {
                     [2] = true,  -- Orc
@@ -60,6 +61,7 @@ local function SyncAchievementsOnLogin(event, player)
                     [15] = true, -- Pandaren
                     [17] = true, -- Man'ari Eredar
                     [21] = true, -- Demon Hunter
+                    -- Add or remove races as needed based on your server.  The value comes from ChrRaces.dbc
                 }
 
                 -- Determine if the player's race belongs to Alliance or Horde
