@@ -1,5 +1,7 @@
 -- ------------------------------------------------------------------------------------------------
--- -- ACCOUNTWIDE REPUTATION CONFIG 
+-- ACCOUNTWIDE REPUTATION CONFIG 
+--
+-- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
 -- ------------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_REPUTATION = false
@@ -7,7 +9,7 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputation |rmodule."
 
 -- -- ------------------------------------------------------------------------------------------------
--- -- -- END CONFIG
+-- -- END CONFIG
 -- -- ------------------------------------------------------------------------------------------------
 
 local function SetReputation(event, player)

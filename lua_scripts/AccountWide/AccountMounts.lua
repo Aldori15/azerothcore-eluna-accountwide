@@ -1,5 +1,9 @@
-------------------------------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------------------------
 -- ACCOUNTWIDE MOUNTS CONFIG
+--
+-- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
+-- Credits to Dinkledork for the original script with the 396 original wotlk mounts.
+-- It has been since expanded further with the addition of the exotic import mounts.
 ------------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_MOUNTS = false

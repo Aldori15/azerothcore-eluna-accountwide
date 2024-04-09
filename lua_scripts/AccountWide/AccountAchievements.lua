@@ -1,5 +1,7 @@
 -- ---------------------------------------------------------------------------------------------
--- -- ACCOUNTWIDE ACHIEVEMENTS CONFIG
+-- ACCOUNTWIDE ACHIEVEMENTS CONFIG
+--
+-- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
 -- ---------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_ACHIEVEMENTS = false

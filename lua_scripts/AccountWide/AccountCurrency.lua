@@ -1,5 +1,7 @@
 -- ----------------------------------------------------------------------------------------------
--- -- ACCOUNTWIDE CURRENCY CONFIG 
+-- ACCOUNTWIDE CURRENCY CONFIG 
+--
+-- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
 -- ----------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_CURRENCY = false
@@ -7,9 +9,8 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rmodule."
 
 -- -- -------------------------------------------------------------------------------------------
--- -- -- END CONFIG
+-- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
-
 
 -- Note: these `item_template` IDs are currently configured for Dinkledork's repack, so your mileage may vary if there are custom currencies, etc.  Just add/remove currencies as necessary.
 local currencyItemIDs = {
