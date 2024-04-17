@@ -31,7 +31,6 @@ local function GoldSharing(event, player)
     end
 
     local accountId = player:GetAccountId()
-    local startingMoneyCount
 
     if event == 3 then
         StoreMaxMoney(accountId)
