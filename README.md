@@ -43,8 +43,8 @@
   		By default, this script allows unlocked/learned mounts to be shared across all characters on the account, as long as
     	they are at least level 11. This value is configurable using the "WhenPlayerLevel" variable in the config.
       	
-       		You also have the ability to prevent sharing mounts of the opposing faction, but I personally would recommend leaving it off.
-       		Up to you though.
+       	You also have the ability to prevent sharing mounts of the opposing faction, but I personally would recommend leaving it off.
+       	Up to you though.
 		
   		All of the mounts are defined in the "mount_listing" variable on Line 26. If your server has any addition mounts that
     	are not listed here, feel free to add them. Also vise versa if there are any mounts you DO NOT want to share, feel free
@@ -53,8 +53,9 @@
  
  	** Reputation: **
      	Ah yes, probably my favorite script in this list. Not sure if you are just like me and get tired of farming reputations
-      	on multiple characters, but with the discussion of Blizzard implementing accountwide Reputation stuff in The War Within, it inspired
-       	me to try to achieve similar results here. This script allows all of the reputation progress to be shared across all of your characters.
+      	on multiple characters, but with the discussion of Blizzard implementing accountwide Reputation stuff in The War
+       	Within, it inspired me to try to achieve similar results here. This script allows all of the reputation progress to be shared
+	across all of your characters.
 
 
 # Setup
