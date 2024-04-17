@@ -55,7 +55,7 @@
      	Ah yes, probably my favorite script in this list. Not sure if you are just like me and get tired of farming reputations
       	on multiple characters, but with the discussion of Blizzard implementing accountwide Reputation stuff in The War
        	Within, it inspired me to try to achieve similar results here. This script allows all of the reputation progress to be shared
-	across all of your characters.
+		across all of your characters.
 
 
 # Setup
