@@ -12,6 +12,7 @@
 	- Currency
  	- GoldSharing
 	- Mounts
+ 	- Pets
 	- Reputation
 
   	Each script has a module-like configuration where you can choose to enable/disable independently.
@@ -46,9 +47,17 @@
        	You also have the ability to prevent sharing mounts of the opposing faction, but I personally would recommend leaving it off.
        	Up to you though.
 		
-  		All of the mounts are defined in the "mount_listing" variable on Line 26. If your server has any addition mounts that
-    	are not listed here, feel free to add them. Also vise versa if there are any mounts you DO NOT want to share, feel free
-      	to comment out or remove them from there.
+  		All of the mounts are defined in the "mount_listing" variable on Line 26. If your server has any additional mounts that
+    	are not listed here, feel free to add them. Also vise versa if there are any mounts you DO NOT want to share, simply
+      	comment out or remove them from the list.
+
+
+       ** Pets: **
+       		This script allows unlocked/learned pet companions to be shared across all characters on the account.
+
+  		All of the pets are defined in the "petIDs" variable on Line 19.  If your server has any additional pets that
+    	are not listed here, feel free to add them.  Also vise versa if there are any mounts you DO NOT want to share, simply
+     	comment out or remove them from the list.
 
  
  	** Reputation: **
