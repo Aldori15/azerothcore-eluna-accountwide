@@ -18,13 +18,13 @@
   	Each script has a module-like configuration where you can choose to enable/disable independently.
 
 ### Included Module Features:
-	** Achievements: **
+	Achievements:
  		Tired of repeating the same achievements on multiple charcters? This script will allow completed achievements to
    		be synced across all characters on your account.  Once you complete an achievement, the next time you log into a 
      	different character, they will be awarded with the achievement as well.
 
  
- 	** Currency: **
+ 	Currency:
        	This script will allow currencies to be synced across all characters on your account that are eligible to use them.
 		For example, if you have 100 Badge of Justice, all of your eligible characters will have 100. If you spend 50, then all
  		of your characters will now have 50.  
@@ -34,13 +34,13 @@
  		if you don't want specific ones to be shared.
 
  
- 	** GoldSharing: **
+ 	GoldSharing:
   		This script essentially allows all of your characters to share a single gold fund. A joint checking/savings account
     	if you will. If you gain 100 gold on one character, then all of your characters will get that gold upon the next login. If you
      	spend any gold, then all of your characters will subtract their gold balance.
 
  
- 	** Mounts: **
+ 	Mounts:
   		By default, this script allows unlocked/learned mounts to be shared across all characters on the account, as long as
     	they are at least level 11. This value is configurable using the "WhenPlayerLevel" variable in the config.
       	
@@ -59,7 +59,7 @@
      	comment out or remove them from the list.
 
  
- 	** Reputation: **
+ 	Reputation:
      	Ah yes, probably my favorite script in this list. Not sure if you are just like me and get tired of farming reputations
       	on multiple characters, but with the discussion of Blizzard implementing accountwide Reputation stuff in The War
        	Within, it inspired me to try to achieve similar results here. This script allows all of the reputation progress to be shared
