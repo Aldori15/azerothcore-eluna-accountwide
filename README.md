@@ -51,8 +51,7 @@
     	are not listed here, feel free to add them. Also vise versa if there are any mounts you DO NOT want to share, simply
       	comment out or remove them from the list.
 
-
-       **Pets:**
+	Pets:
        	This script allows unlocked/learned pet companions to be shared across all characters on the account.
 
   		All of the pets are defined in the "petIDs" variable on Line 19.  If your server has any additional pets that
