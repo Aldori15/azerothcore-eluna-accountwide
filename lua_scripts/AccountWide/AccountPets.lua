@@ -105,7 +105,7 @@ local petIDs = {
     25018,  -- Murki
     63318,  -- Murkimus the Gladiator
     75936,  -- Murkimus the Gladiator
-    24696,  -- Murky
+    -- 24696,  -- Murky
     51716,  -- Nether Ray Fry
     32298,  -- Netherwhelp
     67417,  -- Obsidian Hatchling
