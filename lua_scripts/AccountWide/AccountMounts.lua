@@ -901,8 +901,10 @@ end
 
 local function OnSendLearnedSpell(event, packet, player)
   local  spellId = packet:ReadULong() -- spellId(SMSG_LEARNED_SPELL) / oldSpellId (SMSG_SUPERCEDED_SPELL)
-    if(spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091) then
-        player:RegisterEvent((function(_,_,_,p) OnLogin(nil, p) end), 100)
+    if(OnLogin ~= nil) then
+        if(spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091) then
+            player:RegisterEvent((function(_,_,_,p) OnLogin(nil, p) end), 100)
+        end
     end
 end
 
