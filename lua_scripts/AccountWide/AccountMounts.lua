@@ -833,13 +833,13 @@ local mount_listing = {
 }
 --[[
 local RIDING_SPELL = {
-    [75] = 33388, -- Apprentince Riding (75) (60 speed)
-    [150] = 33391, -- Journeyman Riding (150) (100 speed)
-    [225] = 34090, -- Expert Riding (225) (150 speed)
-    [300] = 34091, -- Artisan Riding (300) (280+ speed)
+    33388, -- Apprentince Riding (75) (60 speed)
+    33391, -- Journeyman Riding (150) (100 speed)
+    34090, -- Expert Riding (225) (150 speed)
+    34091, -- Artisan Riding (300) (280+ speed)
 }
 ]]
-local function CheckMountsOnLogin(event, player)
+local function SyncMounts(event, player)
     local Player_LeveL = player:GetLevel()
     if (Player_LeveL < WhenPLayerLevel) then
         return
@@ -900,14 +900,14 @@ local function CheckMountsOnLogin(event, player)
 end
 
 local function OnSendLearnedSpell(event, packet, player)
-  local  spellId = packet:ReadULong() -- spellId(SMSG_LEARNED_SPELL) / oldSpellId (SMSG_SUPERCEDED_SPELL)
-    if(OnLogin ~= nil) then
-        if(spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091) then
-            player:RegisterEvent((function(_,_,_,p) OnLogin(nil, p) end), 100)
-        end
+    local spellId = packet:ReadULong() -- spellId(SMSG_LEARNED_SPELL) / oldSpellId (SMSG_SUPERCEDED_SPELL)
+    
+    if(spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091) then
+        player:RegisterEvent((function(_,_,_,p) SyncMounts(nil, p) end), 100)
     end
-end
+  end
+  
 
-RegisterPlayerEvent(3, CheckMountsOnLogin)
+RegisterPlayerEvent(3, SyncMounts)
 RegisterPacketEvent(299, 7, OnSendLearnedSpell) -- PACKET_EVENT_ON_PACKET_SEND (SMSG_LEARNED_SPELL)
 RegisterPacketEvent(300, 7, OnSendLearnedSpell) -- PACKET_EVENT_ON_PACKET_SEND (SMSG_SUPERCEDED_SPELL)
