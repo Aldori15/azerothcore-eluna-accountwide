@@ -5,6 +5,7 @@
 -- ----------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_CURRENCY = false
+
 local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rmodule."
 
@@ -17,9 +18,11 @@ local currencyItemIDs = {
     12840,  -- Minion's Scourgestone
     12841,  -- Invader's Scourgestone
     12843,  -- Corruptor's Scourgestone
+    19182,  -- Darkmoon Faire Prize Ticket
     20558,  -- Warsong Gulch Mark of Honor
     20559,  -- Arathi Basin Mark of Honor
     20560,  -- Alterac Valley Mark of Honor
+    22637,  -- Primal Hakkari Idol
     29024,  -- Eye of the Storm Mark of Honor
     29434,  -- Badge of Justice
     37711,  -- Reward Points
@@ -66,7 +69,7 @@ local function AccountWideCurrency(event, player)
                     local difference = maxCount - currentCount
                     player:AddItem(currencyItemID, difference)
                 elseif event == 4 or event == 25 then
-                    -- Update the count for all characters on the account to the new lower count if currency was spent
+                    -- Update the count for all characters on the account to the new lower count if any currency was spent
                     CharDBExecute("UPDATE item_instance SET count = " .. currentCount .. " WHERE owner_guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ") AND itemEntry = " .. currencyItemID .. " AND count > " .. currentCount)
                 end
             elseif event == 3 and maxCount ~= 0 then
