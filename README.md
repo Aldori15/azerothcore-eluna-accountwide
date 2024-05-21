@@ -14,6 +14,8 @@
 	- Mounts
  	- Pets
 	- Reputation
+ 	- TaxiPaths
+  	- Titles
 
   	Each script has a module-like configuration where you can choose to enable/disable independently.
 
@@ -65,6 +67,18 @@
       	on multiple characters, but with the discussion of Blizzard implementing accountwide Reputation stuff in The War
        	Within, it inspired me to try to achieve similar results here. This script allows all of the reputation progress to be shared
 		across all of your characters.
+
+
+  	TaxiPaths:
+   	This script will synchronize learned taxi paths across all characters on your account within the same faction.
+    	
+     		Due to horde/alliance interactions, horde taxi paths will only be shared with other horde characters and 
+     	alliance taxi paths will only be shared with other alliance characters on the same account.
+
+
+      	Titles:
+       Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned 
+       character titles to the other characters on your account.
 
 
 # Setup
