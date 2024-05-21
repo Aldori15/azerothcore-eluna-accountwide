@@ -75,6 +75,7 @@
      	Due to horde/alliance interactions, horde taxi paths will only be shared with other horde characters and 
      	alliance taxi paths will only be shared with other alliance characters on the same account.
 
+
 	Titles:
        	Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned 
        	character titles to the other characters on your account.
