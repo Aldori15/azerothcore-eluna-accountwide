@@ -7,7 +7,7 @@
 local ENABLE_ACCOUNTWIDE_TITLES = false
 
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
 -- -- END CONFIG

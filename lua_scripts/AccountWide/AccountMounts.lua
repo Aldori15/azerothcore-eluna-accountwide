@@ -7,18 +7,21 @@
 ------------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_MOUNTS = false
+
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Mounts |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Mounts |rlua script."
 
-local WhenPLayerLevel = 11  -- Minimum character level before mounts are learned.
-
+local WhenPLayerLevel = 11  -- Minimum character level before mounts are learned
 local StrictFactions = false  -- Disallow learning mounts from opposing faction
 
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
 
-if (not ENABLE_ACCOUNTWIDE_MOUNTS) then return end
+if not ENABLE_ACCOUNTWIDE_MOUNTS then
+    return
+end
+
 local FILE_NAME = string.match(debug.getinfo(1,'S').source, "[^/\\]*.lua$")
 
 -- [spellID] = { ridingSkillRank, class, team+1, extraSkillId, extraSkillRank }

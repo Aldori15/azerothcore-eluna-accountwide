@@ -7,11 +7,15 @@
 local ENABLE_GOLD_SHARING = false
 
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Gold Sharing |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Gold Sharing |rlua script."
 
 -- -------------------------------------------------------------------------------------------
 -- END CONFIG
 -- -------------------------------------------------------------------------------------------
+
+if not ENABLE_GOLD_SHARING then
+    return
+end
 
 -- Table to store maximum money for each account
 local maxMoneyCache = {}
@@ -26,10 +30,6 @@ local function StoreMaxMoney(accountId)
 end
 
 local function GoldSharing(event, player)
-    if not ENABLE_GOLD_SHARING then
-        return
-    end
-
     local accountId = player:GetAccountId()
 
     if event == 3 then

@@ -7,11 +7,15 @@
 local ENABLE_ACCOUNTWIDE_CURRENCY = false
 
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
 -- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
+
+if not ENABLE_ACCOUNTWIDE_CURRENCY then
+    return
+end
 
 -- Note: these `item_template` IDs are currently configured for Dinkledork's repack, so your mileage may vary if there are custom currencies, etc.  Just add/remove currencies as necessary.
 local currencyItemIDs = {
@@ -44,11 +48,7 @@ local currencyItemIDs = {
 }
 
 local function AccountWideCurrency(event, player)
-    if not ENABLE_ACCOUNTWIDE_CURRENCY then
-        return
-    end
-
-    if event == 3 and ANNOUNCE_ON_LOGIN then
+    if ANNOUNCE_ON_LOGIN and event == 3 then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 

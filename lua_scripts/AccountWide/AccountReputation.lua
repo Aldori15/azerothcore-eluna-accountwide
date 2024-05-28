@@ -5,18 +5,19 @@
 -- ------------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_REPUTATION = false
+
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputation |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputation |rlua script."
 
 -- -- ------------------------------------------------------------------------------------------------
 -- -- END CONFIG
 -- -- ------------------------------------------------------------------------------------------------
 
-local function SetReputation(event, player)
-    if not ENABLE_ACCOUNTWIDE_REPUTATION then
-        return
-    end
+if not ENABLE_ACCOUNTWIDE_REPUTATION then
+    return
+end
 
+local function SetReputation(event, player)
     local accountId = player:GetAccountId()
     local characterGuidsQuery = CharDBQuery("SELECT guid FROM characters WHERE account = " .. accountId)
 
@@ -63,13 +64,13 @@ local function SetReputation(event, player)
     until not characterGuidsQuery:NextRow()
 end
 
-local function LoginMessages(event, player)
-    if ENABLE_ACCOUNTWIDE_REPUTATION and ANNOUNCE_ON_LOGIN then
+local function BroadcastLoginAnnouncement(event, player)
+    if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 end
 
 RegisterPlayerEvent(1, SetReputation) -- EVENT_ON_CHARACTER_CREATE
-RegisterPlayerEvent(3, LoginMessages) -- EVENT_ON_LOGIN
+RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
 RegisterPlayerEvent(4, SetReputation) -- EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, SetReputation) -- EVENT_ON_SAVE

@@ -7,13 +7,15 @@
 local ENABLE_ACCOUNTWIDE_PETS = false
 
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Pets |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Pets |rlua script."
 
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
 
-if (not ENABLE_ACCOUNTWIDE_PETS) then return end
+if not ENABLE_ACCOUNTWIDE_PETS then
+    return
+end
 
 -- These are the spell IDs, not item IDs
 local petIDs = {

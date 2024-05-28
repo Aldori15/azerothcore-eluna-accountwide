@@ -11,7 +11,7 @@
 local ENABLE_ACCOUNTWIDE_TAXI_PATHS = false
 
 local ANNOUNCE_ON_LOGIN = true
-local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rmodule."
+local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
 -- -- ---------------------------------------------------------------------------------------------
 -- -- END CONFIG
