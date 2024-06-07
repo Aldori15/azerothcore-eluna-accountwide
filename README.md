@@ -83,6 +83,7 @@
 
 # Setup
 
+- Run the "create_accountwide_tables.sql" file on your Characters database.
 - Copy the "AccountWide" folder into the lua_scripts folder on your server.
-- Configure which module(s) you want to enable at the top of each Lua script.
-- If your server is already running, type ".reload eluna" in the worldserver window.  Otherwise, just start up the server.
+- Configure which module(s) you want to enable at the top of each Lua script.  All of them are turned off by default.
+- Start up the server.
