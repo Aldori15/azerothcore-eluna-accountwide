@@ -13,19 +13,33 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Gold Shar
 -- END CONFIG
 -- -------------------------------------------------------------------------------------------
 
-if not ENABLE_GOLD_SHARING then
-    return
+if not ENABLE_GOLD_SHARING then return end
+
+local function GetTotalAccountGold(accountId)
+    local query = CharDBQuery("SELECT gold FROM accountwide_gold WHERE accountId = " .. accountId)
+    return query and query:GetUInt32(0) or 0
 end
 
--- Table to store maximum money for each account
-local maxMoneyCache = {}
+-- This function is only called once when the table is empty or has never been populated since creating the table
+local function InitializeAccountGoldOnEmptyTable(accountId)
+    local query = CharDBQuery("SELECT SUM(money) FROM characters WHERE account = " .. accountId)
+    local totalAccountGold = query and query:GetUInt32(0) or 0
+    CharDBExecute("REPLACE INTO accountwide_gold (accountId, gold) VALUES (" .. accountId .. ", " .. totalAccountGold .. ")")
+end
 
-local function StoreMaxMoney(accountId)
-    local maxQuery = CharDBQuery("SELECT MAX(money) FROM characters WHERE account = " .. accountId)
-    if maxQuery then
-        maxMoneyCache[accountId] = maxQuery:GetUInt32(0) or 0
-    else
-        maxMoneyCache[accountId] = nil -- Set to nil if no maximum money found
+local function UpdateAccountGold(accountId, gold)
+    CharDBExecute("REPLACE INTO accountwide_gold (accountId, gold) VALUES (" .. accountId .. ", " .. gold .. ")")
+end
+
+local function SyncCharacterGoldOnLogin(player, accountId)
+    local totalAccountGold = GetTotalAccountGold(accountId)
+    local currentGold = player:GetCoinage()
+
+    -- Calculate the difference and adjust the player's gold accordingly
+    if totalAccountGold > currentGold then
+        player:ModifyMoney(totalAccountGold - currentGold)
+    elseif totalAccountGold < currentGold then
+        player:ModifyMoney(-(currentGold - totalAccountGold))
     end
 end
 
@@ -33,27 +47,21 @@ local function GoldSharing(event, player)
     local accountId = player:GetAccountId()
 
     if event == 3 then
-        StoreMaxMoney(accountId)
-
+        -- Initialize account gold if not already initialized. Once initialized, it should never need to do it again
+        if GetTotalAccountGold(accountId) == 0 then
+            InitializeAccountGoldOnEmptyTable(accountId)
+        end
+        -- Delay the sync to allow accountwide_gold to update first before syncing down to the character to ensure there are no discrepancies 
+        player:RegisterEvent(function(_, _, _, player)
+            SyncCharacterGoldOnLogin(player, accountId)
+        end, 1000, 1) -- Delay of 1000 milliseconds (1 second) to ensure that the InitializeAccountGoldOnEmptyTable() function finishes populating the empty table
+        
         if ANNOUNCE_ON_LOGIN then
             player:SendBroadcastMessage(ANNOUNCEMENT)
         end
-    end
-
-    -- Check if max money is already cached for this account. If not, update the cache
-    if not maxMoneyCache[accountId] then
-        StoreMaxMoney(accountId)
-    end
-
-    local maxCount = maxMoneyCache[accountId]
-    local currentCount = player:GetCoinage()
-
-    if event == 3 and (currentCount < maxCount) then
-        local difference = maxCount - currentCount
-        player:ModifyMoney(difference)
     elseif event == 4 or event == 25 then
-    -- Update the money for all characters on the account to the new lower amount if any money was spent
-    CharDBExecute("UPDATE characters SET money = " .. currentCount .. " WHERE account = " .. accountId .. " AND money > " .. currentCount)
+        local currentGold = player:GetCoinage()
+        UpdateAccountGold(accountId, currentGold)
     end
 end
 

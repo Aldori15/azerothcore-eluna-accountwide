@@ -13,11 +13,7 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 -- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
-if not ENABLE_ACCOUNTWIDE_CURRENCY then
-    return
-end
-
--- Note: these `item_template` IDs are currently configured for Dinkledork's repack, so your mileage may vary if there are custom currencies, etc.  Just add/remove currencies as necessary.
+-- Note: these ItemIDs are currently configured for Dinkledork's repack in CurrencyTypes.dbc, so your mileage may vary with custom currencies, etc.  Just add/remove any as necessary.
 local currencyItemIDs = {
     12840,  -- Minion's Scourgestone
     12841,  -- Invader's Scourgestone
@@ -44,37 +40,69 @@ local currencyItemIDs = {
     44990,  -- Champion's Seal
     45624,  -- Emblem of Conquest
     47241,  -- Emblem of Triumph
-    49426,  -- Emblem of Frost
+    49426  -- Emblem of Frost
 }
 
-local function AccountWideCurrency(event, player)
-    if ANNOUNCE_ON_LOGIN and event == 3 then
-        player:SendBroadcastMessage(ANNOUNCEMENT)
-    end
+if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
+local function FetchAccountCurrency(accountId, currencyId)
+    local query = CharDBQuery("SELECT count FROM accountwide_currency WHERE accountId = " .. accountId .. " AND currencyId = " .. currencyId)
+    return query and query:GetUInt32(0) or 0
+end
+
+local function UpdateAccountCurrency(accountId, currencyId, newCount)
+    CharDBExecute("INSERT INTO accountwide_currency (accountId, currencyId, count) VALUES (" .. accountId .. ", " .. currencyId .. ", " .. newCount .. ") ON DUPLICATE KEY UPDATE count = " .. newCount)
+end
+
+-- Purpose of this function is to populate the accountwide_currency table if it is empty, usually when the table is first created and the first character login.
+-- Once the table has been populated, this function should always return out early since checkQuery will have records and the function will not proceed.
+-- If the table is empty, then it will check item_instance for a sum of currencies on the account and use those to populate the table.
+local function InitializeAccountCurrencyOnEmptyTable(accountId)
+    local checkQuery = CharDBQuery("SELECT 1 FROM accountwide_currency LIMIT 1")
+
+    if not checkQuery then
+        for _, currencyId in ipairs(currencyItemIDs) do
+            local itemQuery = CharDBQuery("SELECT SUM(count) FROM item_instance WHERE itemEntry = " .. currencyId .. " AND owner_guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ")")
+            if itemQuery then
+                local count = itemQuery:GetUInt32(0)
+                UpdateAccountCurrency(accountId, currencyId, count)
+            end
+        end
+    end
+end
+
+local function SyncCurrencyOnLogin(player, accountId)
+    for _, currencyId in ipairs(currencyItemIDs) do
+        local accountCurrencyCount = FetchAccountCurrency(accountId, currencyId)
+        local playerCurrencyCount = player:GetItemCount(currencyId)
+
+        if playerCurrencyCount < accountCurrencyCount then
+            player:AddItem(currencyId, accountCurrencyCount - playerCurrencyCount)
+        elseif playerCurrencyCount > accountCurrencyCount then
+            player:RemoveItem(currencyId, playerCurrencyCount - accountCurrencyCount)
+        end
+    end
+end
+
+local function AccountWideCurrency(event, player)
     local accountId = player:GetAccountId()
 
-    -- Loop through currency items
-    for _, currencyItemID in ipairs(currencyItemIDs) do
-        local maxQuery = CharDBQuery("SELECT MAX(count) FROM item_instance WHERE owner_guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ") AND itemEntry = " .. currencyItemID)
-        if maxQuery then
-            local maxCount = maxQuery:GetUInt32(0) or 0
+    if event == 3 then
+        if ANNOUNCE_ON_LOGIN then
+            player:SendBroadcastMessage(ANNOUNCEMENT)
+        end
+        InitializeAccountCurrencyOnEmptyTable(accountId)
 
-            local currentQuery = CharDBQuery("SELECT count FROM item_instance WHERE owner_guid = " .. player:GetGUIDLow() .. " AND itemEntry = " .. currencyItemID)
-            if currentQuery then
-                local currentCount = currentQuery:GetUInt32(0) or 0
+        player:RegisterEvent(function(_, _, _, player)
+            SyncCurrencyOnLogin(player, accountId)
+        end, 1000, 1) -- Delay of 1000 milliseconds (1 second) to ensure that the InitializeAccountCurrencyOnEmptyTable() function finishes populating the empty table
+    elseif event == 4 or event == 25 then
+        for _, currencyId in ipairs(currencyItemIDs) do
+            local playerCurrencyCount = player:GetItemCount(currencyId)
+            local accountCurrencyCount = FetchAccountCurrency(accountId, currencyId)
 
-                if event == 3 and currentCount < maxCount then
-                    -- If the currency on the current logged in character doesn't match the currency of the other characters on the account, set the difference to match it
-                    local difference = maxCount - currentCount
-                    player:AddItem(currencyItemID, difference)
-                elseif event == 4 or event == 25 then
-                    -- Update the count for all characters on the account to the new lower count if any currency was spent
-                    CharDBExecute("UPDATE item_instance SET count = " .. currentCount .. " WHERE owner_guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ") AND itemEntry = " .. currencyItemID .. " AND count > " .. currentCount)
-                end
-            elseif event == 3 and maxCount ~= 0 then
-                -- If the currency is missing from the current character's inventory and it resides on another character, add it
-                player:AddItem(currencyItemID, maxCount)
+            if playerCurrencyCount ~= accountCurrencyCount then
+                UpdateAccountCurrency(accountId, currencyId, playerCurrencyCount)
             end
         end
     end
