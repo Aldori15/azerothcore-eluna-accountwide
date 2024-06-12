@@ -24,7 +24,6 @@ local invalidFactions = { [21426] = true }
 local initializingAccounts = {}
 
 local function InitializeAccountReputation(accountId, callback)
-    print("Calling InitializeAccountReputation()")
     local query = CharDBQuery("SELECT faction, MAX(standing) FROM character_reputation WHERE guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ") GROUP BY faction")
     if query then
         repeat
@@ -40,7 +39,6 @@ local function InitializeAccountReputation(accountId, callback)
 end
 
 local function GetAccountReputation(accountId, player, callback)
-    print("Calling GetAccountReputation()")
     local reputationData = {}
     local query = CharDBQuery("SELECT factionId, standing FROM accountwide_reputation WHERE accountId = " .. accountId)
     if query then
@@ -66,7 +64,6 @@ local function GetAccountReputation(accountId, player, callback)
 end
 
 local function ApplyReputationToPlayer(player, reputationData)
-    print("Calling ApplyReputationToPlayer()")
     for factionId, accountStanding in pairs(reputationData) do
         if not invalidFactions[factionId] then
             local playerStanding = player:GetReputation(factionId)
@@ -84,7 +81,7 @@ local function UpdateAccountReputationOnReputationChange(event, player, factionI
     end
 end
 
-local function OnLogin(event, player)
+local function SyncReputationOnLogin(event, player)
     local accountId = player:GetAccountId()
     local guid = player:GetGUIDLow()
     GetAccountReputation(accountId, player, function(player, reputationData)
@@ -101,5 +98,5 @@ local function OnLogin(event, player)
     end
 end
 
-RegisterPlayerEvent(3, OnLogin) -- EVENT_ON_LOGIN
+RegisterPlayerEvent(3, SyncReputationOnLogin) -- EVENT_ON_LOGIN
 RegisterPlayerEvent(15, UpdateAccountReputationOnReputationChange) -- EVENT_ON_REPUTATION_CHANGE
