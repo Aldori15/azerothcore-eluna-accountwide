@@ -38,10 +38,10 @@
  	Money:
   		Gone are the days where you need to balance different amounts of gold on each of your characters.
     
-    		This script essentially allows all of your characters to share a single gold fund. 
+    	This script essentially allows all of your characters to share a single gold fund. 
       	In other words, a joint checking/savings account.  If you gain 100 gold on one character, 
        	then all of your characters will get that gold upon the next login. If you spend any gold, 
-	then all of your characters will subtract their gold balance.
+		then all of your characters will subtract their gold balance.
 
  
  	Mounts:
