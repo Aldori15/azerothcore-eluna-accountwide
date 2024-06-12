@@ -43,11 +43,3 @@ CREATE TABLE IF NOT EXISTS `accountwide_reputation` (
     `standing` INT UNSIGNED NOT NULL,
     PRIMARY KEY (`accountId`, `factionId`)
 );
-
--- Create the accountwide_reputation table if it doesn't already exist
-CREATE TABLE IF NOT EXISTS `accountwide_reputation` (
-    `accountId` INT UNSIGNED NOT NULL,
-    `factionId` INT UNSIGNED NOT NULL,
-    `standing` INT UNSIGNED NOT NULL,
-    PRIMARY KEY (`accountId`, `factionId`)
-);
