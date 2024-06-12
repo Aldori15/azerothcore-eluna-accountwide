@@ -17,15 +17,7 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Path
 -- -- END CONFIG
 -- -- ---------------------------------------------------------------------------------------------
 
-if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then 
-    return
-end
-
-local function BroadcastLoginAnnouncement(event, player)
-    if ANNOUNCE_ON_LOGIN then
-        player:SendBroadcastMessage(ANNOUNCEMENT)
-    end
-end
+if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
 local allianceRaces = {
     [1] = true,  -- Human
@@ -37,8 +29,8 @@ local allianceRaces = {
     [14] = true, -- High Elf
     [16] = true, -- Worgen
     [19] = true, -- Lightforged
-    [20] = true, -- Demon Hunter
-    -- Add or remove races as needed based on your server. The values come from ChrRaces.dbc
+    [20] = true -- Demon Hunter
+    -- Add or remove races as needed based on your server. These values come from ChrRaces.dbc
 }
 
 local hordeRaces = {
@@ -51,9 +43,15 @@ local hordeRaces = {
     [13] = true, -- Vulpera
     [15] = true, -- Pandaren
     [17] = true, -- Man'ari Eredar
-    [21] = true, -- Demon Hunter
-    -- Add or remove races as needed based on your server. The values come from ChrRaces.dbc
+    [21] = true -- Demon Hunter
+    -- Add or remove races as needed based on your server. These values come from ChrRaces.dbc
 }
+
+local function BroadcastLoginAnnouncement(event, player)
+    if ANNOUNCE_ON_LOGIN then
+        player:SendBroadcastMessage(ANNOUNCEMENT)
+    end
+end
 
 local function GetKnownTaxiPathsOnAccount(accountId)
     local query = CharDBQuery("SELECT guid, race, taximask FROM characters WHERE account = " .. accountId)
@@ -105,6 +103,6 @@ local function SynchronizeTaxiPaths(event, player)
     end
 end
 
-RegisterPlayerEvent(3, BroadcastLoginAnnouncement)   -- EVENT_ON_LOGIN
-RegisterPlayerEvent(4, SynchronizeTaxiPaths)         -- EVENT_ON_LOGOUT
-RegisterPlayerEvent(25, SynchronizeTaxiPaths)        -- EVENT_ON_SAVE
+RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
+RegisterPlayerEvent(4, SynchronizeTaxiPaths) -- EVENT_ON_LOGOUT
+RegisterPlayerEvent(25, SynchronizeTaxiPaths) -- EVENT_ON_SAVE

@@ -13,9 +13,7 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |r
 -- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
-if not ENABLE_ACCOUNTWIDE_TITLES then 
-    return
-end
+if not ENABLE_ACCOUNTWIDE_TITLES then return end
 
 local function BroadcastLoginAnnouncement(event, player)
     if ANNOUNCE_ON_LOGIN then
