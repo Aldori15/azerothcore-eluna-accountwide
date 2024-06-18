@@ -15,10 +15,21 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputatio
 
 if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
 
+-- Alliance Factions
+local allianceFactions = {
+    [47] = true, [54] = true, [69] = true, [72] = true, [469] = true, [509] = true, [589] = true, 
+    [730] = true, [890] = true, [891] = true, [930] = true, [946] = true, [978] = true, [1037] = true, 
+    [1050] = true, [1068] = true, [1094] = true, [1126] = true
+}
+
+-- Horde Factions
+local hordeFactions = {
+    [67] = true, [68] = true, [76] = true, [81] = true, [510] = true, [530] = true, [729] = true, 
+    [889] = true, [892] = true, [911] = true, [922] = true, [941] = true, [947] = true, [1052] = true, 
+    [1064] = true, [1067] = true, [1085] = true, [1124] = true
+}
+
 -- List of invalid faction IDs to exclude
--- For some reason, there is a random ghost faction (21426) in character_reputation that doesn't exist in Faction.dbc.
--- Wowhead doesn't know this faction exists.  Tried .modify reputation 21426 and it said the faction was unknown.  Also tried a GetReputation() method and ReputationMgr returns an error for an unknown faction.
--- To this day, I have no idea what this is, so I added it to a list to exclude so it doesn't return an error.
 local invalidFactions = { [21426] = true }
 
 local initializingAccounts = {}
@@ -64,11 +75,24 @@ local function GetAccountReputation(accountId, player, callback)
 end
 
 local function ApplyReputationToPlayer(player, reputationData)
+    local playerTeam = player:GetTeam()
     for factionId, accountStanding in pairs(reputationData) do
         if not invalidFactions[factionId] then
-            local playerStanding = player:GetReputation(factionId)
-            if playerStanding and playerStanding ~= accountStanding then
-                player:SetReputation(factionId, accountStanding)
+            local applyReputation = false
+            if playerTeam == 0 then -- Alliance
+                if allianceFactions[factionId] or (not allianceFactions[factionId] and not hordeFactions[factionId]) then
+                    applyReputation = true
+                end
+            elseif playerTeam == 1 then -- Horde
+                if hordeFactions[factionId] or (not allianceFactions[factionId] and not hordeFactions[factionId]) then
+                    applyReputation = true
+                end
+            end
+            if applyReputation then
+                local playerStanding = player:GetReputation(factionId)
+                if playerStanding and playerStanding ~= accountStanding then
+                    player:SetReputation(factionId, accountStanding)
+                end
             end
         end
     end
