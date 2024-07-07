@@ -13,7 +13,7 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 -- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
--- Note: these ItemIDs are currently configured for Dinkledork's repack in CurrencyTypes.dbc, so your mileage may vary with custom currencies, etc.  Just add/remove any as necessary.
+-- Note: these ItemIDs are currently configured in CurrencyTypes.dbc for Dinkledork's Ashen Order repack, so your mileage may vary with custom currencies, etc.  Just add/remove any as necessary.
 local currencyItemIDs = {
     12840,  -- Minion's Scourgestone
     12841,  -- Invader's Scourgestone
@@ -22,6 +22,7 @@ local currencyItemIDs = {
     20558,  -- Warsong Gulch Mark of Honor
     20559,  -- Arathi Basin Mark of Honor
     20560,  -- Alterac Valley Mark of Honor
+    21229,  -- Qiraji Lord's Insignia
     22637,  -- Primal Hakkari Idol
     29024,  -- Eye of the Storm Mark of Honor
     29434,  -- Badge of Justice
@@ -40,7 +41,7 @@ local currencyItemIDs = {
     44990,  -- Champion's Seal
     45624,  -- Emblem of Conquest
     47241,  -- Emblem of Triumph
-    49426  -- Emblem of Frost
+    49426,  -- Emblem of Frost
 }
 
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end

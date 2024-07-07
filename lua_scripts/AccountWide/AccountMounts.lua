@@ -421,8 +421,15 @@ local mountSpellIDs = {
     47977, -- Magic Broom
     61289, -- Borrowed Broom
 
-    -- Custom exotic imported mounts
-    100121, -- Vicious War Fox
+    -- Custom exotic mounts
+    100121,  -- Vicious War Fox
+    800150,  -- Frostwing Drake (Sapphiron's Icy Reins)
+    816056,  -- Gelatinous Stalker
+    826655,  -- Armored Red Qiraji Battle Tank
+    826656,  -- Armored Yellow Qiraji Battle Tank
+    826657,  -- Armored Green Qiraji Battle Tank
+    826658,  -- Armored Ivory Qiraji Battle Tank
+    826659,  -- Armored Blue Qiraji Battle Tank
     1700157, -- WhimsyshireCloudMount_Angry
     1700158, -- WhimsyshireCloudMount_Frozen
     1700159, -- WhimsyshireCloudMount_Happy
