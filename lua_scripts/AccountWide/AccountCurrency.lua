@@ -13,6 +13,8 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 -- -- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
+if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
+
 -- Note: these ItemIDs are currently configured in CurrencyTypes.dbc for Dinkledork's Ashen Order repack, so your mileage may vary with custom currencies, etc.  Just add/remove any as necessary.
 local currencyItemIDs = {
     12840,  -- Minion's Scourgestone
@@ -43,8 +45,6 @@ local currencyItemIDs = {
     47241,  -- Emblem of Triumph
     49426,  -- Emblem of Frost
 }
-
-if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
 local function FetchAccountCurrency(accountId, currencyId)
     local query = CharDBQuery("SELECT count FROM accountwide_currency WHERE accountId = " .. accountId .. " AND currencyId = " .. currencyId)
