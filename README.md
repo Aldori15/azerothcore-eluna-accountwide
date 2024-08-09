@@ -9,7 +9,7 @@ Tired of repeating the same achievements on multiple characters?  This script wi
 ### Currency
 This script will allow currencies to be synced across all characters on your account.  For example, if you have 100 Badge of Justice, all of your characters will have 100. If you spend 30, then all of your characters will now have 70.  This data will be stored in a new `accountwide_currency` table.
 
-The "currencyItemIDs" variable on Line 17 of the script indicates which currencies are shared. These are the  IDs pulled from `CurrencyTypes.dbc`. Feel free to add/remove any to tailor to your server if needed.
+The "currencyItemIDs" table on Line 19 of the script indicates which currencies are shared. These are the  IDs pulled from `CurrencyTypes.dbc`. Feel free to add/remove any to tailor to your server if needed.
 
 ### Money
 Gone are the days where you need to balance different amounts of gold on each of your characters.
@@ -19,20 +19,24 @@ This script essentially allows all of your characters to share a single gold fun
 ### Mounts
 By default, this script allows learned mounts to be shared across all characters on the account, provided they are at least level 11. This level value is configurable using the "WhenPlayerLevel" variable in the config.  This data will be stored in a new `accountwide_mounts` table.
 
-All of the mounts are defined in the "mountSpellIDs" variable on Line 22.  Feel free to add/remove any to tailor to your server if needed.
+All of the mounts are defined in the "mountSpellIDs" table on Line 22.  Feel free to add/remove any to tailor to your server if needed.
 
 ### Pets
 This script allows learned pet companions to be shared across all characters on the account.  This data will be stored in a new `accountwide_pets` table.
 
-All of the pets are defined in the "petSpellIDs" variable on Line 18.  Feel free to add/remove any to tailor to your server if needed.
+All of the pets are defined in the "petSpellIDs" table on Line 18.  Feel free to add/remove any to tailor to your server if needed.
 
 ### Reputation
-Not sure if you are just like me and get tired of farming reputations on multiple characters, but this script allows all of the reputation progress to be shared across all of your characters.  This data will be stored in a new `accountwide_reputation` table.
+Not sure if you are just like me and get tired of farming reputations on multiple characters, but this script allows all of the reputation progress to be shared across all of your characters.
 
-### TaxiPaths
-This script will synchronize learned taxi paths across all characters on your account that are within the same faction.
+There are some exceptions to the rule though.  In order to not break factions by inadvertently making reputations fully accountwide, factions
+will stay true as they do today.  Horde factions will only be shared to horde characters.  Alliance factions will only be shared to alliance characters.
+Neutral factions will be shared to both.
+
+### Taxi Paths / Flight Paths
+This script will synchronize learned flight paths across all characters on your account that are within the same faction.
     	
-Due to horde/alliance interactions, horde taxi paths will only be shared with other horde characters and alliance taxi paths will only be shared with other alliance characters on the same account.
+Due to horde/alliance interactions, horde flight paths will only be shared with other horde characters and alliance flight paths will only be shared with other alliance characters on the same account.
 
 ### Titles
 Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned character titles to the other characters on your account.
