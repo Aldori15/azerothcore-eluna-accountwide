@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS `accountwide_achievements` (
 
 -- Create the accountwide_currency table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_currency` (
-    `accountId` INT NOT NULL,
-    `currencyId` INT NOT NULL,
+    `accountId` INT UNSIGNED NOT NULL,
+    `currencyId` INT UNSIGNED NOT NULL,
     `count` INT NOT NULL,
     PRIMARY KEY (`accountId`, `currencyId`)
 );
@@ -24,22 +24,17 @@ CREATE TABLE IF NOT EXISTS `accountwide_money` (
 
 -- Create the accountwide_mounts table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_mounts` (
-    `accountId` INT NOT NULL,
-    `mountSpellId` INT NOT NULL,
+    `accountId` INT UNSIGNED NOT NULL,
+    `mountSpellId` INT UNSIGNED NOT NULL,
     PRIMARY KEY (`accountId`, `mountSpellId`)
 );
 
 -- Create the accountwide_pets table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_pets` (
-    `accountId` INT NOT NULL,
-    `petSpellId` INT NOT NULL,
+    `accountId` INT UNSIGNED NOT NULL,
+    `petSpellId` INT UNSIGNED NOT NULL,
     PRIMARY KEY (`accountId`, `petSpellId`)
 );
 
--- Create the accountwide_reputation table if it doesn't already exist
-CREATE TABLE IF NOT EXISTS `accountwide_reputation` (
-    `accountId` INT UNSIGNED NOT NULL,
-    `factionId` INT UNSIGNED NOT NULL,
-    `standing` INT UNSIGNED NOT NULL,
-    PRIMARY KEY (`accountId`, `factionId`)
-);
+-- This table is now obsolete, so remove it for players who were using the table prior to this change
+DROP TABLE IF EXISTS `accountwide_reputation`;
