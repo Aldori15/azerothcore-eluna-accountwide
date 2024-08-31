@@ -46,6 +46,10 @@ end
 local function AccountMoney(event, player)
     local accountId = player:GetAccountId()
 
+    if player:HasItem(800086) then  -- Unfair Taxes Key (Taxation Without Representation Mode)
+        return
+    end
+
     if event == 3 then
         -- Initialize accountwide_money if the table is empty
         if GetTotalAccountMoney(accountId) == 0 then
