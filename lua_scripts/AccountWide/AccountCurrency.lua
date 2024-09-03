@@ -17,33 +17,35 @@ if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
 -- Note: these ItemIDs are currently configured in CurrencyTypes.dbc for Dinkledork's Ashen Order repack, so your mileage may vary with custom currencies, etc.  Just add/remove any as necessary.
 local currencyItemIDs = {
-    12840,  -- Minion's Scourgestone
-    12841,  -- Invader's Scourgestone
-    12843,  -- Corruptor's Scourgestone
-    19182,  -- Darkmoon Faire Prize Ticket
-    20558,  -- Warsong Gulch Mark of Honor
-    20559,  -- Arathi Basin Mark of Honor
-    20560,  -- Alterac Valley Mark of Honor
-    21229,  -- Qiraji Lord's Insignia
-    22637,  -- Primal Hakkari Idol
-    29024,  -- Eye of the Storm Mark of Honor
-    29434,  -- Badge of Justice
-    37711,  -- Reward Points
-    37836,  -- Venture Coin
-    40752,  -- Emblem of Heroism
-    40753,  -- Emblem of Valor
-    41596,  -- Dalaran Jewelcrafter's Token
-    42425,  -- Strand of the Ancients Mark of Honor
-    43016,  -- Dalaran Cooking Award
-    43228,  -- Stone Keeper's Shard
-    43307,  -- Arena Points
-    43308,  -- Honor Points
-    43589,  -- Wintergrasp Mark of Honor
-    43949,  -- Lich Rune
-    44990,  -- Champion's Seal
-    45624,  -- Emblem of Conquest
-    47241,  -- Emblem of Triumph
-    49426,  -- Emblem of Frost
+    12840,   -- Minion's Scourgestone
+    12841,   -- Invader's Scourgestone
+    12843,   -- Corruptor's Scourgestone
+    19182,   -- Darkmoon Faire Prize Ticket
+    20558,   -- Warsong Gulch Mark of Honor
+    20559,   -- Arathi Basin Mark of Honor
+    20560,   -- Alterac Valley Mark of Honor
+    21229,   -- Qiraji Lord's Insignia
+    22637,   -- Primal Hakkari Idol
+    29024,   -- Eye of the Storm Mark of Honor
+    29434,   -- Badge of Justice
+    37711,   -- Reward Points
+    37836,   -- Venture Coin
+    40752,   -- Emblem of Heroism
+    40753,   -- Emblem of Valor
+    41596,   -- Dalaran Jewelcrafter's Token
+    42425,   -- Strand of the Ancients Mark of Honor
+    43016,   -- Dalaran Cooking Award
+    43228,   -- Stone Keeper's Shard
+    43307,   -- Arena Points
+    43308,   -- Honor Points
+    43589,   -- Wintergrasp Mark of Honor
+    43949,   -- Lich Rune
+    44990,   -- Champion's Seal
+    45624,   -- Emblem of Conquest
+    47241,   -- Emblem of Triumph
+    49426,   -- Emblem of Frost
+    829434,  -- Badge of Glory
+    829435,  -- Badge of Courage
 }
 
 local function FetchAccountCurrency(accountId, currencyId)
