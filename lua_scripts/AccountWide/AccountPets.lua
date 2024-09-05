@@ -49,17 +49,21 @@ local petSpellIDs = {
     15048,  -- Pet Bombling
     15049,  -- Lil' Smoky
     15067,  -- Sprite Darter Hatchling
+    15648,  -- Corrupted Kitten
     15999,  -- Worg Pup
     16450,  -- Smolderweb Hatchling
     17707,  -- Panda Cub
     17708,  -- Mini Diablo
     17709,  -- Zergling
     19772,  -- Lifelike Toad
+    23429,  -- Loggerhead Snapjaw
     23811,  -- Jubling
     23530,  -- Tiny Red Dragon
     23531,  -- Tiny Green Dragon
+    24988,  -- Lurky
     25018,  -- Murki
     25162,  -- Disgusting Oozeling
+    25849,  -- Baby Shark
     26010,  -- Tranquil Mechanical Yeti
     26045,  -- Tiny Snowman
     26529,  -- Winter Reindeer
@@ -72,6 +76,7 @@ local petSpellIDs = {
     28738,  -- Speedy
     28739,  -- Mr. Wiggles
     28740,  -- Whiskers the Rat
+    28871,  -- Spirit of Summer
     30152,  -- White Tiger Cub
     30156,  -- Hippogryph Hatchling
     32298,  -- Netherwhelp
@@ -94,6 +99,7 @@ local petSpellIDs = {
     40613,  -- Willy
     40614,  -- Egbert
     40634,  -- Peanut
+    40990,  -- Stinker
     42609,  -- Sinister Squashling
     43697,  -- Toothy
     43698,  -- Muckbreath
@@ -133,6 +139,7 @@ local petSpellIDs = {
     62508,  -- Dun Morogh Cub
     62510,  -- Tirisfal Batling
     62513,  -- Durotar Scorpion
+    62514,  -- Alarming Clockbot
     62516,  -- Elwynn Lamb
     62542,  -- Mulgore Hatchling
     62561,  -- Strand Crawler
@@ -143,6 +150,7 @@ local petSpellIDs = {
     62746,  -- Argent Gruntling
     63318,  -- Murkimus the Gladiator
     63712,  -- Sen'jin Fetish
+    64351,  -- XS-001 Constructor Bot
     65358,  -- Calico Cat
     65381,  -- Curious Oracle Hatchling
     65382,  -- Curious Wolvar Pup
@@ -158,6 +166,7 @@ local petSpellIDs = {
     67418,  -- Ravasaur Hatchling
     67419,  -- Razormaw Hatchling
     67420,  -- Razzashi Hatchling
+    67527,  -- Onyx Panther
     68810,  -- Spectral Tiger Cub
     68767,  -- Tuskarr Kite
     69002,  -- Onyxian Whelpling
@@ -176,8 +185,21 @@ local petSpellIDs = {
     75936,  -- Murkimus the Gladiator
     78381,  -- Mini Thor
 
-    -- Dinkledork custom imports
     795023,  -- Blinky
+    1001005, -- Mini Mindslayer
+    1001006, -- Anubisith Idol
+    1001007, -- Giant Bone Spider
+    1001008, -- Fungal Abomination
+    1001009, -- Stitched Pup
+    1001010, -- Harbinger of Flame
+    1001011, -- Corefire Imp
+    1001012, -- Ashstone Core
+    1001013, -- Untamed Hatchling
+    1001014, -- Chrominius
+    1001015, -- Death Talon Whelpguard
+    1001016, -- Viscidus Globule
+    1001017, -- Lil' Ragnaros
+    1001029, -- Mr. Bigglesworth
 }
 
 local function InitializePetTable(accountId) 

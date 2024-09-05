@@ -422,6 +422,26 @@ local mountSpellIDs = {
     61289, -- Borrowed Broom
 
     -- Custom exotic mounts
+    80055,   -- Primal Flamesaber
+    80865,   -- Core Hound
+    80875,   -- Lucid Nightmare
+    80876,   -- Brown Mystic Courser
+    80877,   -- Dark Lucid Nightmare
+    80878,   -- Wild Dreamrunner
+    80880,   -- White Ethereal Courser
+    80881,   -- Black Lucid Nightmare
+    80882,   -- Dark Dreaming Courser
+    80887,   -- Shimmermist Wanderer
+    80888,   -- Dark Wanderer
+    80889,   -- Doe Wanderer
+    80890,   -- Swift Shimmermist Runner
+    80891,   -- Swift Gloomhoof
+    80892,   -- Agile Forest Doe
+    80899,   -- Prestigious Forestshade Courser
+    80900,   -- Prestigious Ivory Gale Courser
+    80901,   -- Prestigious Twilight Courser
+    80902,   -- Prestigious Emberwood Courser
+    80903,   -- Prestigious Midnight War Courser
     100121,  -- Vicious War Fox
     800150,  -- Frostwing Drake (Sapphiron's Icy Reins)
     816056,  -- Gelatinous Stalker
@@ -478,6 +498,12 @@ local mountSpellIDs = {
     1700039, -- Reins of the Dark Bloodgorged Crawg
     1700040, -- Reins of the Green Bloodgorged Crawg
     1700041, -- Reins of the Pale Bloodgorged Crawg
+    1700042, -- Mighty Caravan Brutosaur
+    1700043, -- Blue Caravan Brutosaur
+    1700044, -- Dark Caravan Brutosaur
+    1700045, -- Green Caravan Brutosaur
+    1700046, -- Red Caravan Brutosaur
+    1700047, -- Pale Caravan Brutosaur
     1700048, -- Reins of the Astral Cloud Serpent
     1700049, -- Warforged Nightmare
     1700050, -- Disc of the Flying Cloud
