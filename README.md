@@ -1,7 +1,7 @@
 # ![logo](https://raw.githubusercontent.com/azerothcore/azerothcore.github.io/master/images/logo-github.png) AzerothCore
 
 # Accountwide Systems Using Eluna
-Here is my implementation approach to all things Accountwide.  Eluna needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.
+Here is my implementation approach to all things Accountwide.  Eluna needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.  It is recommended to install these on a fresh server.
 
 ### Achievements
 Tired of repeating the same achievements on multiple characters?  This script will allow completed achievements to be synced across all characters on the account.  Once you complete an achievement, the next time you log into a different character, they will be awarded with the achievement as well.  This data will be stored in a new `accountwide_achievements` table.
