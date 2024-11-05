@@ -49,3 +49,7 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 > - Copy the "AccountWide" folder into the lua_scripts folder on your server.
 > - Configure which module(s) you want to enable at the top of each Lua script.  All of them are turned off by default.
 > - Start up the server.
+
+> [!WARNING]
+> # If you use AccountReputation:
+> - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is recommended to install this on a fresh server.
