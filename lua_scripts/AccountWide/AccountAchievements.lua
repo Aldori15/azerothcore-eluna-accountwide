@@ -4,8 +4,8 @@
 -- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
 -- ---------------------------------------------------------------------------------------------
 
-local ENABLE_ACCOUNTWIDE_ACHIEVEMENTS = true
-local ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS = true
+local ENABLE_ACCOUNTWIDE_ACHIEVEMENTS = false
+local ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS = false
 
 local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achievements |rlua script."
