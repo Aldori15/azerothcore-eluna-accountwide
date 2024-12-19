@@ -16,19 +16,20 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Money |rl
 if not ENABLE_ACCOUNTWIDE_MONEY then return end
 
 local function GetTotalAccountMoney(accountId)
-    local query = CharDBQuery("SELECT money FROM accountwide_money WHERE accountId = " .. accountId)
+    local query = CharDBQuery(string.format("SELECT money FROM accountwide_money WHERE accountId = %d", accountId))
     return query and query:GetUInt32(0) or 0
 end
 
 -- This function is only called once when the table is empty or has never been populated since creating the table
 local function InitializeAccountMoneyOnEmptyTable(accountId)
-    local query = CharDBQuery("SELECT SUM(money) FROM characters WHERE account = " .. accountId)
+    local query = CharDBQuery(string.format("SELECT SUM(money) FROM characters WHERE account = %d", accountId))
     local totalAccountMoney = query and query:GetUInt32(0) or 0
-    CharDBExecute("REPLACE INTO accountwide_money (accountId, money) VALUES (" .. accountId .. ", " .. totalAccountMoney .. ")")
+
+    CharDBExecute(string.format("REPLACE INTO accountwide_money (accountId, money) VALUES (%d, %d)", accountId, totalAccountMoney))
 end
 
 local function UpdateAccountMoney(accountId, money)
-    CharDBExecute("REPLACE INTO accountwide_money (accountId, money) VALUES (" .. accountId .. ", " .. money .. ")")
+    CharDBExecute(string.format("REPLACE INTO accountwide_money (accountId, money) VALUES (%d, %d)", accountId, money))
 end
 
 local function SyncCharacterMoneyOnLogin(player, accountId)

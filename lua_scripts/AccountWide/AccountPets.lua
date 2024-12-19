@@ -206,7 +206,7 @@ local function InitializePetTable(accountId)
     local result = CharDBQuery("SELECT COUNT(*) AS count FROM accountwide_pets")
     -- If the table is empty, then populate it
     if result and result:GetUInt32(0) == 0 then
-        local charactersResult = CharDBQuery("SELECT guid FROM characters WHERE account = "..accountId)
+        local charactersResult = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
         if charactersResult then
             repeat
                 local charGuid = charactersResult:GetUInt32(0)

@@ -11,7 +11,7 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achievements |rlua script."
 
 -- ---------------------------------------------------------------------------------------------
--- -- END CONFIG
+-- END CONFIG
 -- ---------------------------------------------------------------------------------------------
 
 local function AddMissingAchievements(player, achievements)
@@ -30,13 +30,32 @@ local function SyncCompletedAchievementsOnLogin(event, player)
     local accountId = player:GetAccountId()
 
     -- Fetch achievements from accountwide_achievements
-    local query = CharDBQuery("SELECT achievementId FROM accountwide_achievements WHERE accountId = " .. accountId)
+    local query = CharDBQuery(string.format("SELECT achievementId FROM accountwide_achievements WHERE accountId = %d", accountId))
     local achievements = {}
     if query then
         repeat
             local achievementId = query:GetUInt32(0)
             table.insert(achievements, achievementId)
         until not query:NextRow()
+    end
+
+    -- Fetch and update new achievements from character_achievement
+    local charQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
+    if charQuery then
+        repeat
+            local charGuid = charQuery:GetUInt32(0)
+
+            local achQuery = CharDBQuery(string.format("SELECT achievement FROM character_achievement WHERE guid = %d", charGuid))
+            if achQuery then
+                repeat
+                    local achievementId = achQuery:GetUInt32(0)
+                    if not achievements[achievementId] then
+                        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_achievements (accountId, achievementId) VALUES (%d, %d)", accountId, achievementId))
+                        table.insert(achievements, achievementId)
+                    end
+                until not achQuery:NextRow()
+            end
+        until not charQuery:NextRow()
     end
 
     AddMissingAchievements(player, achievements)
@@ -47,7 +66,7 @@ local function CollectAccountWideCriteriaProgress(accountId)
     local characterGuids = {}
 
     -- Collect all character GUIDs for the account
-    local charQuery = CharDBQuery("SELECT guid FROM characters WHERE account = " .. accountId)
+    local charQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
     if charQuery then
         repeat
             table.insert(characterGuids, charQuery:GetUInt32(0))
@@ -56,7 +75,7 @@ local function CollectAccountWideCriteriaProgress(accountId)
 
     -- Collect criteria progress for each character
     for _, charGuid in ipairs(characterGuids) do
-        local progressQuery = CharDBQuery("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = " .. charGuid)
+        local progressQuery = CharDBQuery(string.format("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = %d", charGuid))
         if progressQuery then
             repeat
                 local criteria = progressQuery:GetUInt32(0)
@@ -77,11 +96,7 @@ end
 
 local function ApplyCriteriaProgressToCharacter(targetGuid, criteriaProgress)
     for criteria, data in pairs(criteriaProgress) do
-        CharDBExecute(string.format([[
-            INSERT INTO character_achievement_progress (guid, criteria, counter, date)
-            VALUES (%d, %d, %d, %d)
-            ON DUPLICATE KEY UPDATE counter = %d, date = %d
-        ]], targetGuid, criteria, data.counter, data.date, data.counter, data.date))
+        CharDBExecute(string.format([[INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (%d, %d, %d, %d) ON DUPLICATE KEY UPDATE counter = %d, date = %d]], targetGuid, criteria, data.counter, data.date, data.counter, data.date))
     end
 end
 
@@ -101,7 +116,7 @@ local function SyncCriteriaProgressOnLogin(event, player)
 
     -- Fetch current character's criteria progress
     local charProgress = {}
-    local progressQuery = CharDBQuery("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = " .. characterGuid)
+    local progressQuery = CharDBQuery(string.format("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = %d", characterGuid))
     if progressQuery then
         repeat
             local criteria = progressQuery:GetUInt32(0)

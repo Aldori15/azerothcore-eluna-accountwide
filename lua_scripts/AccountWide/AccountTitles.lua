@@ -10,7 +10,7 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
--- -- END CONFIG
+-- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
 if not ENABLE_ACCOUNTWIDE_TITLES then return end
@@ -22,7 +22,7 @@ local function BroadcastLoginAnnouncement(event, player)
 end
 
 local function GetKnownTitlesOnAccount(accountId)
-    local query = CharDBQuery("SELECT guid, knownTitles FROM characters WHERE account = " .. accountId)
+    local query = CharDBQuery(string.format("SELECT guid, knownTitles FROM characters WHERE account = %d", accountId))
     
     local characters = {}
     local longestKnownTitles = ""
@@ -52,7 +52,7 @@ local function SynchronizeTitles(event, player)
         -- Update characters where knownTitles length is less than the longest knownTitles length
         for _, character in ipairs(accountCharacters) do
             if #character.knownTitles < #longestKnownTitles then
-                local updateQuery = CharDBQuery("UPDATE characters SET knownTitles = '" .. longestKnownTitles .. "' WHERE guid = " .. character.guid .. " AND knownTitles <> '" .. longestKnownTitles .. "'")
+                local updateQuery = CharDBQuery(string.format("UPDATE characters SET knownTitles = '%s' WHERE guid = %d AND knownTitles <> '%s'", longestKnownTitles, character.guid, longestKnownTitles))
             end
         end
     end

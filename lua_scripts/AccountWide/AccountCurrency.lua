@@ -10,7 +10,7 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
--- -- END CONFIG
+-- END CONFIG
 -- -- -------------------------------------------------------------------------------------------
 
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
@@ -46,15 +46,16 @@ local currencyItemIDs = {
     49426,   -- Emblem of Frost
     829434,  -- Badge of Glory
     829435,  -- Badge of Courage
+    1000010, -- Quest Reward Tokens
 }
 
 local function FetchAccountCurrency(accountId, currencyId)
-    local query = CharDBQuery("SELECT count FROM accountwide_currency WHERE accountId = " .. accountId .. " AND currencyId = " .. currencyId)
+    local query = CharDBQuery(string.format("SELECT count FROM accountwide_currency WHERE accountId = %d AND currencyId = %d", accountId, currencyId))
     return query and query:GetUInt32(0) or 0
 end
 
 local function UpdateAccountCurrency(accountId, currencyId, newCount)
-    CharDBExecute("INSERT INTO accountwide_currency (accountId, currencyId, count) VALUES (" .. accountId .. ", " .. currencyId .. ", " .. newCount .. ") ON DUPLICATE KEY UPDATE count = " .. newCount)
+    CharDBExecute(string.format("INSERT INTO accountwide_currency (accountId, currencyId, count) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE count = %d", accountId, currencyId, newCount, newCount))
 end
 
 -- Purpose of this function is to populate the accountwide_currency table if it is empty, usually when the table is first created and the first character login.
@@ -65,7 +66,7 @@ local function InitializeAccountCurrencyOnEmptyTable(accountId)
 
     if not checkQuery then
         for _, currencyId in ipairs(currencyItemIDs) do
-            local itemQuery = CharDBQuery("SELECT SUM(count) FROM item_instance WHERE itemEntry = " .. currencyId .. " AND owner_guid IN (SELECT guid FROM characters WHERE account = " .. accountId .. ")")
+            local itemQuery = CharDBQuery(string.format("SELECT SUM(count) FROM item_instance WHERE itemEntry = %d AND owner_guid IN (SELECT guid FROM characters WHERE account = %d)", currencyId, accountId))
             if itemQuery then
                 local count = itemQuery:GetUInt32(0)
                 UpdateAccountCurrency(accountId, currencyId, count)

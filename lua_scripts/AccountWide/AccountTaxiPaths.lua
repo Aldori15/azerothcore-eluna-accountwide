@@ -14,7 +14,7 @@ local ANNOUNCE_ON_LOGIN = true
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
 -- -- ---------------------------------------------------------------------------------------------
--- -- END CONFIG
+-- END CONFIG
 -- -- ---------------------------------------------------------------------------------------------
 
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
@@ -54,7 +54,7 @@ local function BroadcastLoginAnnouncement(event, player)
 end
 
 local function GetKnownTaxiPathsOnAccount(accountId)
-    local query = CharDBQuery("SELECT guid, race, taximask FROM characters WHERE account = " .. accountId)
+    local query = CharDBQuery(string.format("SELECT guid, race, taximask FROM characters WHERE account = %d", accountId))
     
     local characters = {}
     local longestKnownTaxiMaskAlliance = ""
@@ -95,9 +95,9 @@ local function SynchronizeTaxiPaths(event, player)
     if longestKnownTaxiMask ~= "" then
         for _, character in ipairs(accountCharacters) do
             if allianceRaces[character.race] then
-                CharDBQuery("UPDATE characters SET taximask = '" .. longestKnownTaxiMaskAlliance .. "' WHERE guid = " .. character.guid .. " AND taximask <> '" .. longestKnownTaxiMaskAlliance .. "'")
+                CharDBQuery(string.format("UPDATE characters SET taximask = '%s' WHERE guid = %d AND taximask <> '%s'", longestKnownTaxiMaskAlliance, character.guid, longestKnownTaxiMaskAlliance))
             elseif hordeRaces[character.race] then
-                CharDBQuery("UPDATE characters SET taximask = '" .. longestKnownTaxiMaskHorde .. "' WHERE guid = " .. character.guid .. " AND taximask <> '" .. longestKnownTaxiMaskHorde .. "'")
+                CharDBQuery(string.format("UPDATE characters SET taximask = '%s' WHERE guid = %d AND taximask <> '%s'", longestKnownTaxiMaskHorde, character.guid, longestKnownTaxiMaskHorde))
             end
         end
     end
