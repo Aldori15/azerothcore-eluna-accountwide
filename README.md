@@ -1,7 +1,9 @@
 # ![logo](https://raw.githubusercontent.com/azerothcore/azerothcore.github.io/master/images/logo-github.png) AzerothCore
 
 # Accountwide Systems Using Eluna
-Here is my implementation approach to all things Accountwide.  Eluna needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.  It is recommended to install these on a fresh server.
+Here is my implementation approach to all things Accountwide.  Eluna needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.  
+
+It is HIGHLY recommended to install these on a fresh server.
 
 ### Achievements
 Tired of repeating the same achievements on multiple characters?  This script will allow completed achievements to be synced across all characters on the account.  Once you complete an achievement, the next time you log into a different character, they will be awarded with the achievement as well.  This data will be stored in a new `accountwide_achievements` table.
@@ -39,7 +41,7 @@ This script will synchronize learned flight paths across all characters on your 
 Due to horde/alliance interactions, horde flight paths will only be shared with other horde characters and alliance flight paths will only be shared with other alliance characters on the same account.
 
 ### Titles
-Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned character titles to the other characters on your account.
+Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned character titles to the other characters on your account.  This data will be stored in a new `accountwide_titles` table.
 
 
 
@@ -52,4 +54,4 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 
 > [!WARNING]
 > # If you use AccountReputation:
-> - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is recommended to install this on a fresh server.
+> - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is HIGHLY recommended to install this on a fresh server.
