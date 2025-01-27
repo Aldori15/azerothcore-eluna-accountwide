@@ -38,3 +38,10 @@ CREATE TABLE IF NOT EXISTS `accountwide_pets` (
 
 -- This table is now obsolete, so remove it for players who were using the table prior to this change
 DROP TABLE IF EXISTS `accountwide_reputation`;
+
+-- Create the accountwide_titles table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_titles` (
+    `accountId` INT UNSIGNED NOT NULL,
+    `titleId` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`accountId`, `titleId`)
+);

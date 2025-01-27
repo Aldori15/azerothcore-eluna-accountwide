@@ -15,48 +15,35 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |r
 
 if not ENABLE_ACCOUNTWIDE_TITLES then return end
 
-local function BroadcastLoginAnnouncement(event, player)
+local function UpdateAccountwideTitles(accountId, titleId)
+    CharDBExecute(string.format("INSERT IGNORE INTO accountwide_titles (accountId, titleId) VALUES (%d, %d)", accountId, titleId))
+end
+
+local function GrantAccountwideTitlesOnLogin(event, player)
+    local accountId = player:GetAccountId()
+    local query = CharDBQuery(string.format("SELECT titleId FROM accountwide_titles WHERE accountId = %d", accountId))
+    if query then
+        repeat
+            local titleId = query:GetUInt32(0)
+            if not player:HasTitle(titleId) then
+                player:SetKnownTitle(titleId)
+            end
+        until not query:NextRow()
+    end
+
     if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 end
 
-local function GetKnownTitlesOnAccount(accountId)
-    local query = CharDBQuery(string.format("SELECT guid, knownTitles FROM characters WHERE account = %d", accountId))
-    
-    local characters = {}
-    local longestKnownTitles = ""
-    
-    if query then
-        repeat            
-            local guid = query:GetUInt32(0)
-            local knownTitles = query:GetString(1)
-            
-            if #knownTitles > #longestKnownTitles then
-                longestKnownTitles = knownTitles
-            end
-            
-            table.insert(characters, { guid = guid, knownTitles = knownTitles })
-        until not query:NextRow()
-    end
-    
-    return characters, longestKnownTitles
-end
-
-local function SynchronizeTitles(event, player)
+local function SyncTitlesOnSave(event, player)
     local accountId = player:GetAccountId()
-    local accountCharacters, longestKnownTitles = GetKnownTitlesOnAccount(accountId)
-    
-    -- Ensure there is a longestKnownTitles string on the account to synchronize
-    if longestKnownTitles ~= "" then
-        -- Update characters where knownTitles length is less than the longest knownTitles length
-        for _, character in ipairs(accountCharacters) do
-            if #character.knownTitles < #longestKnownTitles then
-                local updateQuery = CharDBQuery(string.format("UPDATE characters SET knownTitles = '%s' WHERE guid = %d AND knownTitles <> '%s'", longestKnownTitles, character.guid, longestKnownTitles))
-            end
+    for titleId = 1, 250 do -- Assuming a maximum of 250 titles (increase this if your CharTitles.dbc file has more than 250 IDs)
+        if player:HasTitle(titleId) then
+            UpdateAccountwideTitles(accountId, titleId)
         end
     end
 end
 
-RegisterPlayerEvent(3, BroadcastLoginAnnouncement)   -- EVENT_ON_LOGIN
-RegisterPlayerEvent(25, SynchronizeTitles)  -- EVENT_ON_SAVE
+RegisterPlayerEvent(3, GrantAccountwideTitlesOnLogin)  -- EVENT_ON_LOGIN
+RegisterPlayerEvent(25, SyncTitlesOnSave)  -- EVENT_ON_SAVE
