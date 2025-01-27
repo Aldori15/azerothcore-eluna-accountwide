@@ -6,7 +6,7 @@
 
 local ENABLE_ACCOUNTWIDE_TITLES = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Titles |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
@@ -59,5 +59,4 @@ local function SynchronizeTitles(event, player)
 end
 
 RegisterPlayerEvent(3, BroadcastLoginAnnouncement)   -- EVENT_ON_LOGIN
-RegisterPlayerEvent(4, SynchronizeTitles)   -- EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, SynchronizeTitles)  -- EVENT_ON_SAVE

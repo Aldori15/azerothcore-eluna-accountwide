@@ -10,7 +10,7 @@
 
 local ENABLE_ACCOUNTWIDE_TAXI_PATHS = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
 -- -- ---------------------------------------------------------------------------------------------
@@ -104,5 +104,4 @@ local function SynchronizeTaxiPaths(event, player)
 end
 
 RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
-RegisterPlayerEvent(4, SynchronizeTaxiPaths) -- EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, SynchronizeTaxiPaths) -- EVENT_ON_SAVE

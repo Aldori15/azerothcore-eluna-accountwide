@@ -6,7 +6,7 @@
 
 local ENABLE_ACCOUNTWIDE_MONEY = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Money |rlua script."
 
 -- -------------------------------------------------------------------------------------------
@@ -64,12 +64,11 @@ local function AccountMoney(event, player)
         if ANNOUNCE_ON_LOGIN then
             player:SendBroadcastMessage(ANNOUNCEMENT)
         end
-    elseif event == 4 or event == 25 then
+    elseif event == 25 then
         local currentMoney = player:GetCoinage()
         UpdateAccountMoney(accountId, currentMoney)
     end
 end
 
 RegisterPlayerEvent(3, AccountMoney) -- PLAYER_EVENT_ON_LOGIN
-RegisterPlayerEvent(4, AccountMoney) -- PLAYER_EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, AccountMoney) -- EVENT_ON_SAVE

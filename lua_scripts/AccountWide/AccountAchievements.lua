@@ -4,10 +4,10 @@
 -- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
 -- ---------------------------------------------------------------------------------------------
 
-local ENABLE_ACCOUNTWIDE_ACHIEVEMENTS = false
+local ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS = false
 local ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achievements |rlua script."
 
 -- ---------------------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ local function SyncCriteriaProgressOnLogin(event, player)
     end
 end
 
-local function SyncCriteriaProgressOnLogout(event, player)
+local function SyncCriteriaProgressOnSave(event, player)
     local accountId = player:GetAccountId()
     local criteriaProgress, characterGuids = CollectAccountWideCriteriaProgress(accountId)
 
@@ -146,12 +146,12 @@ local function SyncCriteriaProgressOnLogout(event, player)
     end
 end
 
-if ENABLE_ACCOUNTWIDE_ACHIEVEMENTS then
+if ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS then
     RegisterPlayerEvent(3, SyncCompletedAchievementsOnLogin) -- PLAYER_EVENT_ON_LOGIN
 end
 
 if ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then
     RegisterPlayerEvent(1, SyncCriteriaProgressForNewCharacter) -- PLAYER_EVENT_ON_CHARACTER_CREATE
     RegisterPlayerEvent(3, SyncCriteriaProgressOnLogin)      -- PLAYER_EVENT_ON_LOGIN
-    RegisterPlayerEvent(4, SyncCriteriaProgressOnLogout)     -- PLAYER_EVENT_ON_LOGOUT
+    RegisterPlayerEvent(25, SyncCriteriaProgressOnSave)     -- PLAYER_EVENT_ON_SAVE
 end

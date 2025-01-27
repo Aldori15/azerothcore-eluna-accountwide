@@ -6,7 +6,7 @@
 
 local ENABLE_ACCOUNTWIDE_CURRENCY = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency |rlua script."
 
 -- -- -------------------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ local function AccountWideCurrency(event, player)
         player:RegisterEvent(function(_, _, _, player)
             SyncCurrencyOnLogin(player, accountId)
         end, 1000, 1) -- Delay of 1000 milliseconds (1 second) to ensure that the InitializeAccountCurrencyOnEmptyTable() function finishes populating the empty table
-    elseif event == 4 or event == 25 then
+    elseif event == 25 then
         for _, currencyId in ipairs(currencyItemIDs) do
             local playerCurrencyCount = player:GetItemCount(currencyId)
             local accountCurrencyCount = FetchAccountCurrency(accountId, currencyId)
@@ -113,5 +113,4 @@ local function AccountWideCurrency(event, player)
 end
 
 RegisterPlayerEvent(3, AccountWideCurrency) -- PLAYER_EVENT_ON_LOGIN
-RegisterPlayerEvent(4, AccountWideCurrency) -- PLAYER_EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, AccountWideCurrency) -- EVENT_ON_SAVE

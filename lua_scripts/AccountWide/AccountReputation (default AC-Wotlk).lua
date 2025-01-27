@@ -79,7 +79,7 @@ local function UpdateReputationForFaction(factionId, rawReputation, accountId, f
     until not characterGuidsQuery:NextRow()
 end
 
-local function SetReputationOnLogoutOrSave(event, player)
+local function SetReputationOnSave(event, player)
     local accountId = player:GetAccountId()
     local characterGuid = player:GetGUIDLow()
     local race = player:GetRace()
@@ -184,5 +184,4 @@ end
 
 RegisterPlayerEvent(1, SetReputationOnCharacterCreate) -- EVENT_ON_CHARACTER_CREATE
 RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
-RegisterPlayerEvent(4, SetReputationOnLogoutOrSave) -- EVENT_ON_LOGOUT
-RegisterPlayerEvent(25, SetReputationOnLogoutOrSave) -- EVENT_ON_SAVE
+RegisterPlayerEvent(25, SetReputationOnSave) -- EVENT_ON_SAVE
