@@ -79,9 +79,14 @@ local function GetBaseReputationOffset(race, class, factionId)
     return 0
 end
 
+local function ClampReputation(value)
+    -- Clamp the standing between -42000 and 42000 to prevent overflows
+    return math.max(-42000, math.min(42000, value))
+end
+
 local function UpdateReputationForFaction(factionId, rawReputation, accountId, factionChecker)
     local characterGuidsQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
-	
+
     if not characterGuidsQuery then
         return -- No characters found for this account
     end
@@ -94,7 +99,7 @@ local function UpdateReputationForFaction(factionId, rawReputation, accountId, f
 		if factionChecker[race] or (not allianceFactions[factionId] and not hordeFactions[factionId]) then
             -- Calculate the adjusted standing for each character using their own race's and class's base reputation offset
             local baseReputationOffset = GetBaseReputationOffset(race, class, factionId)
-            local adjustedStanding = rawReputation - baseReputationOffset
+            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
             CharDBExecute(string.format("UPDATE character_reputation SET standing = %d WHERE guid = %d AND faction = %d", adjustedStanding, characterGuid, factionId))
         end
     until not characterGuidsQuery:NextRow()
@@ -178,16 +183,18 @@ local function SetReputationOnCharacterCreate(event, player)
     -- Sync reputation data for the new character based on alliance, horde and neutral factions
     for factionId, _ in pairs(allianceFactions) do
         if isAlliance then
-            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, newClass, factionId)
-            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, newClass, factionId)
+            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
+            local rawReputation = existingReputations[factionId] or baseReputationOffset
+            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
     end
 
     for factionId, _ in pairs(hordeFactions) do
         if isHorde then
-            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, newClass, factionId)
-            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, newClass, factionId)
+            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
+            local rawReputation = existingReputations[factionId] or baseReputationOffset
+            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
     end
@@ -195,7 +202,8 @@ local function SetReputationOnCharacterCreate(event, player)
     for factionId in pairs(existingReputations) do
         if not allianceFactions[factionId] and not hordeFactions[factionId] then
             local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
-            local adjustedStanding = existingReputations[factionId] - baseReputationOffset
+            local rawReputation = existingReputations[factionId] or baseReputationOffset
+            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
     end
