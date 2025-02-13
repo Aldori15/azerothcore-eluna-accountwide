@@ -51,7 +51,17 @@ local baseReputationValues = {
     [10] = { [21] = 500, [67] = 3500, [68] = 3100, [70] = -10000, [76] = 500, [81] = 500, [83] = 2999, [86] = 2999, [87] = -6500, [92] = 2000, [93] = 2000, [169] = 500, [369] = 500, [470] = 500, [529] = 200, [530] = 500, [549] = 2999, [550] = 2999, [551] = 2999, [576] = -3500, [577] = 500, [910] = -42000, [911] = 4000, [922] = 0, [932] = -3500, [933] = 0, [934] = 3500, [935] = 0, [936] = 0, [941] = -500, [942] = 0, [947] = 0, [967] = 0, [970] = -2500, [989] = 0, [990] = 0, [1005] = 3000, [1011] = 0, [1012] = 0, [1015] = -42000, [1031] = 0, [1038] = 0, [1052] = 0, [1064] = 0, [1067] = 0, [1073] = 0, [1077] = 0, [1082] = -42000, [1085] = 0, [1090] = 0, [1091] = 0, [1104] = 0, [1105] = 0, [1106] = 0, [1117] = 0, [1118] = 0, [1119] = -42000, [1124] = 0, [1156] = 0 } -- Blood Elf
 }
 
-local function GetBaseReputationOffset(race, factionId)
+local function GetBaseReputationOffset(race, class, factionId)
+    -- Special handling for Faction 1098 (Knights of the Ebon Blade)
+    if factionId == 1098 then
+        if class == 6 then -- Death Knight
+            return 3200
+        else
+            return 0
+        end
+    end
+    
+    -- Default behavior for other factions (race-based reputation)
     local baseReputation = baseReputationValues[race]
     if baseReputation and baseReputation[factionId] then
         return baseReputation[factionId]
@@ -60,7 +70,7 @@ local function GetBaseReputationOffset(race, factionId)
 end
 
 local function UpdateReputationForFaction(factionId, rawReputation, accountId, factionChecker)
-    local characterGuidsQuery = CharDBQuery(string.format("SELECT guid, race FROM characters WHERE account = %d", accountId))
+    local characterGuidsQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
 
     if not characterGuidsQuery then
         return -- No characters found for this account
@@ -69,10 +79,11 @@ local function UpdateReputationForFaction(factionId, rawReputation, accountId, f
     repeat
         local characterGuid = characterGuidsQuery:GetUInt32(0)
         local race = characterGuidsQuery:GetUInt8(1)
+        local class = characterGuidsQuery:GetUInt8(2)
 
         if factionChecker[race] or (not allianceFactions[factionId] and not hordeFactions[factionId]) then
-            -- Calculate the adjusted standing for each character using their own race's base reputation offset
-            local baseReputationOffset = GetBaseReputationOffset(race, factionId)
+            -- Calculate the adjusted standing for each character using their own race's and class's base reputation offset
+            local baseReputationOffset = GetBaseReputationOffset(race, class, factionId)
             local adjustedStanding = rawReputation - baseReputationOffset
             CharDBExecute(string.format("UPDATE character_reputation SET standing = %d WHERE guid = %d AND faction = %d", adjustedStanding, characterGuid, factionId))
         end
@@ -110,7 +121,7 @@ end
 
 local function SetReputationOnCharacterCreate(event, player)
     local accountId = player:GetAccountId()
-    local newCharacterGuidQuery = CharDBQuery(string.format("SELECT guid, race FROM characters WHERE account = %d ORDER BY guid DESC LIMIT 1", accountId))
+    local newCharacterGuidQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d ORDER BY guid DESC LIMIT 1", accountId))
 
     if not newCharacterGuidQuery then
         return -- No new character found
@@ -118,6 +129,8 @@ local function SetReputationOnCharacterCreate(event, player)
 
     local newCharacterGuid = newCharacterGuidQuery:GetUInt32(0)
     local newRace = newCharacterGuidQuery:GetUInt8(1)
+    local newClass = newCharacterGuidQuery:GetUInt8(2)
+
     local isAlliance = allianceRaces[newRace]
     local isHorde = hordeRaces[newRace]
     local existingReputations = {}
@@ -133,16 +146,18 @@ local function SetReputationOnCharacterCreate(event, player)
             local existingCharacterGuidQuery = CharDBQuery(string.format("SELECT guid FROM character_reputation WHERE faction = %d AND standing = %d LIMIT 1", factionId, standing))
             if existingCharacterGuidQuery then
                 local existingCharacterGuid = existingCharacterGuidQuery:GetUInt32(0)
-                local existingRaceQuery = CharDBQuery(string.format("SELECT race FROM characters WHERE guid = %d", existingCharacterGuid))
+                local existingRaceQuery = CharDBQuery(string.format("SELECT race, class FROM characters WHERE guid = %d", existingCharacterGuid))
                 if existingRaceQuery then
                     local existingRace = existingRaceQuery:GetUInt8(0)
+                    local existingClass = existingRaceQuery:GetUInt8(1)
+
                     local existingRaceIsAlliance = allianceRaces[existingRace]
                     local existingRaceIsHorde = hordeRaces[existingRace]
 
                     -- Only consider reputations from the same faction or neutral faction
                     if (isAlliance and existingRaceIsAlliance) or (isHorde and existingRaceIsHorde) or
                        (not allianceFactions[factionId] and not hordeFactions[factionId]) then
-                        local rawReputation = standing + GetBaseReputationOffset(existingRace, factionId)
+                        local rawReputation = standing + GetBaseReputationOffset(existingRace, existingClass, factionId)
                         existingReputations[factionId] = rawReputation
                     end
                 end
@@ -153,23 +168,23 @@ local function SetReputationOnCharacterCreate(event, player)
     -- Sync reputation data for the new character based on alliance, horde and neutral factions
     for factionId, _ in pairs(allianceFactions) do
         if isAlliance then
-            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, factionId)
-            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, factionId)
+            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, newClass, factionId)
+            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, newClass, factionId)
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
     end
 
     for factionId, _ in pairs(hordeFactions) do
         if isHorde then
-            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, factionId)
-            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, factionId)
+            local rawReputation = existingReputations[factionId] or GetBaseReputationOffset(newRace, newClass, factionId)
+            local adjustedStanding = rawReputation - GetBaseReputationOffset(newRace, newClass, factionId)
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
     end
 
     for factionId in pairs(existingReputations) do
         if not allianceFactions[factionId] and not hordeFactions[factionId] then
-            local baseReputationOffset = GetBaseReputationOffset(newRace, factionId)
+            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
             local adjustedStanding = existingReputations[factionId] - baseReputationOffset
             CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
         end
