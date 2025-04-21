@@ -36,8 +36,34 @@ CREATE TABLE IF NOT EXISTS `accountwide_pets` (
     PRIMARY KEY (`accountId`, `petSpellId`)
 );
 
+-- Create the accountwide_pvp_rank table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_pvp_rank` (
+    `accountId` INT UNSIGNED NOT NULL PRIMARY KEY,
+    `arenaPoints` INT UNSIGNED NOT NULL DEFAULT 0,
+    `totalHonorPoints` INT UNSIGNED NOT NULL DEFAULT 0,
+    `todayHonorPoints` INT UNSIGNED NOT NULL DEFAULT 0,
+    `yesterdayHonorPoints` INT UNSIGNED NOT NULL DEFAULT 0,
+    `totalKills` INT UNSIGNED NOT NULL DEFAULT 0,
+    `todayKills` INT UNSIGNED NOT NULL DEFAULT 0,
+    `yesterdayKills` INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- This table is now obsolete, so remove it for players who were using the table prior to this change
 DROP TABLE IF EXISTS `accountwide_reputation`;
+
+-- Create the accountwide_taxi_alliance table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_taxi_alliance` (
+    `accountId` INT UNSIGNED NOT NULL,
+    `nodeId` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`accountId`, `nodeId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create the accountwide_taxi_horde table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_taxi_horde` (
+    `accountId` INT UNSIGNED NOT NULL,
+    `nodeId` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`accountId`, `nodeId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Create the accountwide_titles table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_titles` (
