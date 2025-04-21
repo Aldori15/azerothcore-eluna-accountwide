@@ -26,6 +26,9 @@ This script allows learned pet companions to be shared across all characters on 
 
 All of the pets are defined in the "petSpellIDs" table on Line 18.  Feel free to add/remove any to tailor to your server if needed.
 
+### PvP Rank/Stats
+This script will sync your PvP Rank/Stats across all of your characters: Honorable Kills, Honor Points, Arena Points. This data will be stored in a new `accountwide_pvp_rank` table.
+
 ### Reputation
 Not sure if you are just like me and get tired of farming reputations on multiple characters, but this script allows all of the reputation progress to be shared across all of your characters.
 
