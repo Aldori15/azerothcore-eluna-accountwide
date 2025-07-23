@@ -13,95 +13,66 @@ local ENABLE_ACCOUNTWIDE_TAXI_PATHS = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
--- -- ---------------------------------------------------------------------------------------------
+local DEBUG_MODE = false  -- Toggle debug messages
+
+-- ------------------------------------------------------------------------------------------------
 -- END CONFIG
--- -- ---------------------------------------------------------------------------------------------
+-- ------------------------------------------------------------------------------------------------
 
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
-local allianceRaces = {
-    [1] = true,  -- Human
-    [3] = true,  -- Dwarf
-    [4] = true,  -- Night Elf
-    [7] = true,  -- Gnome
-    [11] = true, -- Draenei
-    [12] = true, -- Void Elf
-    [14] = true, -- High Elf
-    [16] = true, -- Worgen
-    [19] = true, -- Lightforged
-    [20] = true -- Demon Hunter
-    -- Add or remove races as needed based on your server. These values come from ChrRaces.dbc
-}
-
-local hordeRaces = {
-    [2] = true,  -- Orc
-    [5] = true,  -- Undead
-    [6] = true,  -- Tauren
-    [8] = true,  -- Troll
-    [9] = true,  -- Goblin
-    [10] = true, -- Blood Elf
-    [13] = true, -- Vulpera
-    [15] = true, -- Pandaren
-    [17] = true, -- Man'ari Eredar
-    [21] = true -- Demon Hunter
-    -- Add or remove races as needed based on your server. These values come from ChrRaces.dbc
-}
-
-local function BroadcastLoginAnnouncement(event, player)
-    if ANNOUNCE_ON_LOGIN then
-        player:SendBroadcastMessage(ANNOUNCEMENT)
-    end
+local function tableContains(set, value)
+    return set[value] ~= nil
 end
 
-local function GetKnownTaxiPathsOnAccount(accountId)
-    local query = CharDBQuery(string.format("SELECT guid, race, taximask FROM characters WHERE account = %d", accountId))
-    
-    local characters = {}
-    local longestKnownTaxiMaskAlliance = ""
-    local longestKnownTaxiMaskHorde = ""
-    
-    if query then
-        repeat
-            local guid = query:GetUInt32(0)
-            local race = query:GetUInt8(1)
-            local knownTaxiMask = query:GetString(2)
-            
-            if allianceRaces[race] and #knownTaxiMask > #longestKnownTaxiMaskAlliance then
-                longestKnownTaxiMaskAlliance = knownTaxiMask
-            elseif hordeRaces[race] and #knownTaxiMask > #longestKnownTaxiMaskHorde then
-                longestKnownTaxiMaskHorde = knownTaxiMask
-            end
-            
-            table.insert(characters, { guid = guid, race = race, knownTaxiMask = knownTaxiMask })
-        until not query:NextRow()
-    end
-    
-    return characters, longestKnownTaxiMaskAlliance, longestKnownTaxiMaskHorde
-end
-
-local function SynchronizeTaxiPaths(event, player)
+local function OnPlayerLogin(event, player)
     local accountId = player:GetAccountId()
-    local charRace = player:GetRace()
-    
-    local accountCharacters, longestKnownTaxiMaskAlliance, longestKnownTaxiMaskHorde = GetKnownTaxiPathsOnAccount(accountId)
+    local team = player:GetTeam()  -- 0 = Alliance, 1 = Horde
+    local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
 
-    local longestKnownTaxiMask = ""
-    if allianceRaces[charRace] then
-        longestKnownTaxiMask = longestKnownTaxiMaskAlliance
-    elseif hordeRaces[charRace] then
-        longestKnownTaxiMask = longestKnownTaxiMaskHorde
-    end
-    
-    if longestKnownTaxiMask ~= "" then
-        for _, character in ipairs(accountCharacters) do
-            if allianceRaces[character.race] then
-                CharDBQuery(string.format("UPDATE characters SET taximask = '%s' WHERE guid = %d AND taximask <> '%s'", longestKnownTaxiMaskAlliance, character.guid, longestKnownTaxiMaskAlliance))
-            elseif hordeRaces[character.race] then
-                CharDBQuery(string.format("UPDATE characters SET taximask = '%s' WHERE guid = %d AND taximask <> '%s'", longestKnownTaxiMaskHorde, character.guid, longestKnownTaxiMaskHorde))
+    local query = string.format("SELECT nodeId FROM `%s` WHERE accountId = %d", tableName, accountId)
+    local result = CharDBQuery(query)
+
+    if result then
+        local knownNodes = player:GetKnownTaxiNodes()
+        local knownSet = {}
+        for _, nodeId in ipairs(knownNodes) do
+            knownSet[nodeId] = true
+            if DEBUG_MODE then
+                print("[DEBUG] Known Taxi Node:", nodeId)
             end
+        end
+
+        local newNodes = {}
+
+        repeat
+            local nodeId = result:GetUInt32(0)
+            if not tableContains(knownSet, nodeId) then
+                table.insert(newNodes, nodeId)
+            end
+        until not result:NextRow()
+
+        if #newNodes > 0 then
+            player:SetKnownTaxiNodes(newNodes)
+        end
+
+        if ANNOUNCE_ON_LOGIN then
+            player:SendBroadcastMessage(ANNOUNCEMENT)
         end
     end
 end
 
-RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
-RegisterPlayerEvent(25, SynchronizeTaxiPaths) -- EVENT_ON_SAVE
+local function OnPlayerLogout(event, player)
+    local accountId = player:GetAccountId()
+    local team = player:GetTeam()
+    local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
+    local knownNodes = player:GetKnownTaxiNodes()
+
+    for _, nodeId in ipairs(knownNodes) do
+        local insertQuery = string.format("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES (%d, %d)", tableName, accountId, nodeId)
+        CharDBExecute(insertQuery)
+    end
+end
+
+RegisterPlayerEvent(3, OnPlayerLogin)
+RegisterPlayerEvent(4, OnPlayerLogout)
