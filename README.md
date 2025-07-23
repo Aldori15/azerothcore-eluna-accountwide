@@ -37,6 +37,9 @@ will stay true as they do today.  Horde factions will only be shared to horde ch
 Neutral factions will be shared to both.
 
 ### Taxi Paths / Flight Paths
+IMPORTANT!!!!
+This script will require my fork of `mod-eluna` found here: https://github.com/Aldori15/mod-eluna.  I had to add new C++ methods to Eluna to expose the taxi node data.  Alternatively you can use this PR to acore's main Eluna repo, but at the time of this writing they still have not accepted my PR.  So if you use this PR you will need to manually merge it with your repo: https://github.com/azerothcore/mod-eluna/pull/260.  The simplest method though is to just use my forked version which contains everything that the main acore repo has plus additional features and bug fixes.
+
 This script will synchronize learned flight paths across all characters on your account that are within the same faction.
     	
 Due to horde/alliance interactions, horde flight paths will only be shared with other horde characters and alliance flight paths will only be shared with other alliance characters on the same account.
