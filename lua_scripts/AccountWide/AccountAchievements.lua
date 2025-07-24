@@ -14,6 +14,8 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achieveme
 -- END CONFIG
 -- ---------------------------------------------------------------------------------------------
 
+local AUtils = AccountWideUtils
+
 local function AddMissingAchievements(player, achievements)
     for _, achievementID in ipairs(achievements) do
         if not player:HasAchieved(achievementID) then
@@ -23,11 +25,13 @@ local function AddMissingAchievements(player, achievements)
 end
 
 local function SyncCompletedAchievementsOnLogin(event, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
-
-    local accountId = player:GetAccountId()
 
     -- Fetch achievements from accountwide_achievements
     local query = CharDBQuery(string.format("SELECT achievementId FROM accountwide_achievements WHERE accountId = %d", accountId))
@@ -102,6 +106,9 @@ end
 
 local function SyncCriteriaProgressForNewCharacter(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local newCharacterGuid = player:GetGUIDLow()
     local criteriaProgress = CollectAccountWideCriteriaProgress(accountId)
 
@@ -111,6 +118,9 @@ end
 -- Sync criteria progress on login if the character's progress is not up-to-date
 local function SyncCriteriaProgressOnLogin(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local characterGuid = player:GetGUIDLow()
     local accountWideProgress = CollectAccountWideCriteriaProgress(accountId)
 
@@ -138,6 +148,9 @@ end
 
 local function SyncCriteriaProgressOnSave(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+    
     local criteriaProgress, characterGuids = CollectAccountWideCriteriaProgress(accountId)
 
     -- Apply to all characters on the account

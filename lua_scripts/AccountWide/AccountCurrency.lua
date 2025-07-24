@@ -13,6 +13,8 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 -- END CONFIG
 -- -------------------------------------------------------------------------------------------
 
+local AUtils = AccountWideUtils
+
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
 local function FetchCurrencyItemIDs()
@@ -70,6 +72,9 @@ end
 
 local function AccountWideCurrency(event, player)
     local accountId = player:GetAccountId()
+
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
 
     if event == 3 then
         if ANNOUNCE_ON_LOGIN then

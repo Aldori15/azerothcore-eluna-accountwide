@@ -19,6 +19,8 @@ local DEBUG_MODE = false  -- Toggle debug messages
 -- END CONFIG
 -- ------------------------------------------------------------------------------------------------
 
+local AUtils = AccountWideUtils
+
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
 local function tableContains(set, value)
@@ -27,6 +29,9 @@ end
 
 local function OnPlayerLogin(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local team = player:GetTeam()  -- 0 = Alliance, 1 = Horde
     local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
 
@@ -64,6 +69,9 @@ end
 
 local function OnPlayerLogout(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local team = player:GetTeam()
     local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
     local knownNodes = player:GetKnownTaxiNodes()

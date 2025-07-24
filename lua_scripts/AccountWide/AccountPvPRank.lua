@@ -5,12 +5,14 @@
 
 local ENABLE_ACCOUNTWIDE_PVP_RANK = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide PvP Rank |rlua script."
 
 -- ----------------------------------------------------------------------------------------------
 -- Initialize SQL Table (called once at server start)
 -- ----------------------------------------------------------------------------------------------
+local AUtils = AccountWideUtils
+
 local function InitializeAccountwidePvPRankTable()
     local query = CharDBQuery("SELECT guid, account FROM characters")
     if not query then return end
@@ -104,6 +106,9 @@ local function SyncPvPRankOnLogin(event, player)
     end
 
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local guid = player:GetGUIDLow()
 
     local charQuery = CharDBQuery("SELECT todayKills, yesterdayKills FROM characters WHERE guid = " .. guid)
@@ -149,6 +154,9 @@ end
 -- ----------------------------------------------------------------------------------------------
 local function SyncPvPRankOnSave(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local guid = player:GetGUIDLow()
 
     -- Use Eluna for in-memory values

@@ -6,12 +6,14 @@
 
 local ENABLE_ACCOUNTWIDE_PETS = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Pets |rlua script."
 
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
+
+local AUtils = AccountWideUtils
 
 if not ENABLE_ACCOUNTWIDE_PETS then return end
 
@@ -224,6 +226,9 @@ end
 
 local function OnLearnNewPet(event, player, spellID)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     for _, petSpellId in ipairs(petSpellIDs) do
         if spellID == petSpellId then
             -- Insert into accountwide_pets table once a new pet is learned
@@ -234,11 +239,14 @@ local function OnLearnNewPet(event, player, spellID)
 end
 
 local function SyncPetsToPlayer(event, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+    
     if (ANNOUNCE_ON_LOGIN and event) then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    local accountId = player:GetAccountId()
     InitializePetTable(accountId)
 
     for _, petSpellId in ipairs(petSpellIDs) do

@@ -13,6 +13,8 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputatio
 -- END CONFIG
 -- -- ------------------------------------------------------------------------------------------------
 
+local AUtils = AccountWideUtils
+
 if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
 
 -- Alliance and Horde race and faction definitions
@@ -97,6 +99,9 @@ end
 
 local function SetReputationOnSave(event, player)
     local accountId = player:GetAccountId()
+	-- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+	
     local characterGuid = player:GetGUIDLow()
     local race = player:GetRace()
     local isAlliance = allianceRaces[race]
@@ -126,8 +131,10 @@ end
 
 local function SetReputationOnCharacterCreate(event, player)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+	
     local newCharacterGuidQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d ORDER BY guid DESC LIMIT 1", accountId))
-
     if not newCharacterGuidQuery then
         return -- No new character found
     end

@@ -8,7 +8,7 @@
 
 local ENABLE_ACCOUNTWIDE_MOUNTS = false
 
-local ANNOUNCE_ON_LOGIN = true
+local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Mounts |rlua script."
 
 local WhenPLayerLevel = 11  -- Minimum character level before mounts are learned
@@ -16,6 +16,8 @@ local WhenPLayerLevel = 11  -- Minimum character level before mounts are learned
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
+
+local AUtils = AccountWideUtils
 
 if not ENABLE_ACCOUNTWIDE_MOUNTS then return end
 
@@ -879,6 +881,9 @@ end
 
 local function OnLearnNewMount(event, player, spellID)
     local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     for _, mountSpellId in ipairs(mountSpellIDs) do
         if spellID == mountSpellId then
             -- Insert into accountwide_mounts table once a new mount is learned
@@ -889,6 +894,10 @@ local function OnLearnNewMount(event, player, spellID)
 end
 
 local function SyncMountsToPlayer(event, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local Player_LeveL = player:GetLevel()
     if (Player_LeveL < WhenPLayerLevel) then
         return
@@ -904,7 +913,6 @@ local function SyncMountsToPlayer(event, player)
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    local accountId = player:GetAccountId()
     InitializeMountTable(accountId)
 
     for _, mountSpellId in ipairs(mountSpellIDs) do
@@ -919,8 +927,12 @@ local function SyncMountsToPlayer(event, player)
 end
 
 local function OnSendLearnedSpell(event, packet, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+
     local spellId = packet:ReadULong()
-    -- Apprentice Riding   Journeyman Riding    Expert Riding      Artisan Riding
+    -- Apprentice Riding   Journeyman Riding   Expert Riding       Artisan Riding
     if spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091 then
         player:RegisterEvent((function(_,_,_,p) SyncMountsToPlayer(nil, p) end), 100)
     end
