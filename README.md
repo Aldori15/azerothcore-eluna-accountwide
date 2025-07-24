@@ -5,6 +5,9 @@ Here is my implementation approach to all things Accountwide.  Eluna needs to be
 
 It is HIGHLY recommended to install these on a fresh server.
 
+### 00_AccountWideUtils.lua
+This is a mandatory helper script that contains a few helper functions used across various scripts.  You must have this script installed alongside any of the other systems from this repo, otherwise they will not work properly.
+
 ### Achievements
 Tired of repeating the same achievements on multiple characters?  This script will allow completed achievements to be synced across all characters on the account.  Once you complete an achievement, the next time you log into a different character, they will be awarded with the achievement as well.  This data will be stored in a new `accountwide_achievements` table.
 
