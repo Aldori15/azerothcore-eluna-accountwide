@@ -16,12 +16,22 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achieveme
 
 local AUtils = AccountWideUtils
 
-local function AddMissingAchievements(player, achievements)
-    for _, achievementID in ipairs(achievements) do
+local function AddMissingAchievements(player, achievementsSet)
+    for achievementID, _ in pairs(achievementsSet) do
         if not player:HasAchieved(achievementID) then
             player:SetAchievement(achievementID)
         end
     end
+end
+
+local function ExecAccountwideAchBatch(accountId, valuesBatch)
+    if #valuesBatch == 0 then return end
+    local sql = string.format([[
+        INSERT IGNORE INTO accountwide_achievements (accountId, achievementId)
+        VALUES %s
+    ]], table.concat(valuesBatch, ", "))
+
+    CharDBExecute(sql)
 end
 
 local function SyncCompletedAchievementsOnLogin(event, player)
@@ -33,35 +43,49 @@ local function SyncCompletedAchievementsOnLogin(event, player)
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    -- Fetch achievements from accountwide_achievements
-    local query = CharDBQuery(string.format("SELECT achievementId FROM accountwide_achievements WHERE accountId = %d", accountId))
     local achievements = {}
-    if query then
-        repeat
-            local achievementId = query:GetUInt32(0)
-            table.insert(achievements, achievementId)
-        until not query:NextRow()
+
+    do
+        local query = CharDBQuery(string.format("SELECT achievementId FROM accountwide_achievements WHERE accountId = %d", accountId))
+        if query then
+            repeat
+                local achievementId = query:GetUInt32(0)
+                achievements[achievementId] = true
+            until not query:NextRow()
+        end
     end
 
-    -- Fetch and update new achievements from character_achievement
-    local charQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
-    if charQuery then
-        repeat
-            local charGuid = charQuery:GetUInt32(0)
+    local achQuery = CharDBQuery(string.format([[
+        SELECT ca.achievement
+        FROM character_achievement AS ca
+        WHERE ca.guid IN (SELECT c.guid FROM characters AS c WHERE c.account = %d)
+    ]], accountId))
 
-            local achQuery = CharDBQuery(string.format("SELECT achievement FROM character_achievement WHERE guid = %d", charGuid))
-            if achQuery then
-                repeat
-                    local achievementId = achQuery:GetUInt32(0)
-                    if not achievements[achievementId] then
-                        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_achievements (accountId, achievementId) VALUES (%d, %d)", accountId, achievementId))
-                        table.insert(achievements, achievementId)
-                    end
-                until not achQuery:NextRow()
+    -- If we discover new achievements from characters, queue them for a single batched insert
+    local batch, count = {}, 0
+    local BATCH_SIZE = 500
+
+    if achQuery then
+        repeat
+            local achievementId = achQuery:GetUInt32(0)
+            if not achievements[achievementId] then
+                achievements[achievementId] = true
+                table.insert(batch, string.format("(%d, %d)", accountId, achievementId))
+                count = count + 1
+                if count >= BATCH_SIZE then
+                    ExecAccountwideAchBatch(accountId, batch)
+                    batch = {}
+                    count = 0
+                end
             end
-        until not charQuery:NextRow()
+        until not achQuery:NextRow()
     end
 
+    if count > 0 then
+        ExecAccountwideAchBatch(accountId, batch)
+    end
+
+    -- Ensure the logging-in character has all account-wide achievements
     AddMissingAchievements(player, achievements)
 end
 
@@ -98,9 +122,39 @@ local function CollectAccountWideCriteriaProgress(accountId)
     return criteriaProgress, characterGuids
 end
 
+local function ExecProgressBatch(batchRows)
+    if #batchRows == 0 then return end
+    local query = [[
+        INSERT INTO character_achievement_progress (guid, criteria, counter, date)
+        VALUES %s
+        ON DUPLICATE KEY UPDATE
+            counter = VALUES(counter),
+            date    = VALUES(date)
+    ]]
+    local sql = string.format(query, table.concat(batchRows, ", "))
+    CharDBExecute(sql)
+end
+
 local function ApplyCriteriaProgressToCharacter(targetGuid, criteriaProgress)
+    local batch, count = {}, 0
+    local PROGRESS_BATCH_SIZE = 500
+
     for criteria, data in pairs(criteriaProgress) do
-        CharDBExecute(string.format([[INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (%d, %d, %d, %d) ON DUPLICATE KEY UPDATE counter = %d, date = %d]], targetGuid, criteria, data.counter, data.date, data.counter, data.date))
+        local counter = tonumber(data.counter) or 0
+        local date = tonumber(data.date) or 0
+
+        table.insert(batch, string.format("(%d, %d, %d, %d)", targetGuid, criteria, counter, date))
+        count = count + 1
+
+        if count >= PROGRESS_BATCH_SIZE then
+            ExecProgressBatch(batch)
+            batch = {}
+            count = 0
+        end
+    end
+
+    if count > 0 then
+        ExecProgressBatch(batch)
     end
 end
 
