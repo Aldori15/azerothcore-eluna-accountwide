@@ -24,7 +24,7 @@ local function AddMissingAchievements(player, achievementsSet)
     end
 end
 
-local function ExecAccountwideAchBatch(accountId, valuesBatch)
+local function ExecAchievementsBatch(accountId, valuesBatch)
     if #valuesBatch == 0 then return end
     local sql = string.format([[
         INSERT IGNORE INTO accountwide_achievements (accountId, achievementId)
@@ -73,7 +73,7 @@ local function SyncCompletedAchievementsOnLogin(event, player)
                 table.insert(batch, string.format("(%d, %d)", accountId, achievementId))
                 count = count + 1
                 if count >= BATCH_SIZE then
-                    ExecAccountwideAchBatch(accountId, batch)
+                    ExecAchievementsBatch(accountId, batch)
                     batch = {}
                     count = 0
                 end
@@ -82,7 +82,7 @@ local function SyncCompletedAchievementsOnLogin(event, player)
     end
 
     if count > 0 then
-        ExecAccountwideAchBatch(accountId, batch)
+        ExecAchievementsBatch(accountId, batch)
     end
 
     -- Ensure the logging-in character has all account-wide achievements
@@ -97,32 +97,37 @@ local function CollectAccountWideCriteriaProgress(accountId)
     local charQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
     if charQuery then
         repeat
-            table.insert(characterGuids, charQuery:GetUInt32(0))
+            local guid = charQuery:GetUInt32(0)
+            table.insert(characterGuids, guid)
         until not charQuery:NextRow()
     end
 
-    -- Collect criteria progress for each character
-    for _, charGuid in ipairs(characterGuids) do
-        local progressQuery = CharDBQuery(string.format("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = %d", charGuid))
-        if progressQuery then
-            repeat
-                local criteria = progressQuery:GetUInt32(0)
-                local counter = progressQuery:GetUInt32(1)
-                local date = progressQuery:GetUInt32(2)
+    local progressQuery = CharDBQuery(string.format([[
+        SELECT guid, criteria, counter, date
+        FROM character_achievement_progress
+        WHERE guid IN (SELECT guid FROM characters WHERE account = %d)
+    ]], accountId))
 
-                if not criteriaProgress[criteria] or criteriaProgress[criteria].counter < counter then
-                    criteriaProgress[criteria] = { counter = counter, date = date }
-                elseif criteriaProgress[criteria].counter == counter and criteriaProgress[criteria].date < date then
-                    criteriaProgress[criteria].date = date
-                end
-            until not progressQuery:NextRow()
-        end
+    if progressQuery then
+        repeat
+            local guid = progressQuery:GetUInt32(0)
+            local criteria = progressQuery:GetUInt32(1)
+            local counter = progressQuery:GetUInt32(2)
+            local date = progressQuery:GetUInt32(3)
+
+            local existing = criteriaProgress[criteria]
+            if not existing or existing.counter < counter then
+                criteriaProgress[criteria] = { counter = counter, date = date }
+            elseif existing.counter == counter and existing.date < date then
+                criteriaProgress[criteria].date = date
+            end
+        until not progressQuery:NextRow()
     end
 
     return criteriaProgress, characterGuids
 end
 
-local function ExecProgressBatch(batchRows)
+local function ExecCriteriaProgressBatch(batchRows)
     if #batchRows == 0 then return end
     local query = [[
         INSERT INTO character_achievement_progress (guid, criteria, counter, date)
@@ -147,14 +152,14 @@ local function ApplyCriteriaProgressToCharacter(targetGuid, criteriaProgress)
         count = count + 1
 
         if count >= PROGRESS_BATCH_SIZE then
-            ExecProgressBatch(batch)
+            ExecCriteriaProgressBatch(batch)
             batch = {}
             count = 0
         end
     end
 
     if count > 0 then
-        ExecProgressBatch(batch)
+        ExecCriteriaProgressBatch(batch)
     end
 end
 
@@ -169,48 +174,23 @@ local function SyncCriteriaProgressForNewCharacter(event, player)
     ApplyCriteriaProgressToCharacter(newCharacterGuid, criteriaProgress)
 end
 
--- Sync criteria progress on login if the character's progress is not up-to-date
-local function SyncCriteriaProgressOnLogin(event, player)
-    local accountId = player:GetAccountId()
-    -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
-
-    local characterGuid = player:GetGUIDLow()
-    local accountWideProgress = CollectAccountWideCriteriaProgress(accountId)
-
-    -- Fetch current character's criteria progress
-    local charProgress = {}
-    local progressQuery = CharDBQuery(string.format("SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = %d", characterGuid))
-    if progressQuery then
-        repeat
-            local criteria = progressQuery:GetUInt32(0)
-            local counter = progressQuery:GetUInt32(1)
-            local date = progressQuery:GetUInt32(2)
-            charProgress[criteria] = { counter = counter, date = date }
-        until not progressQuery:NextRow()
-    end
-
-    -- Compare against account data and update if there's a mismatch
-    for criteria, accountData in pairs(accountWideProgress) do
-        local charData = charProgress[criteria]
-        if not charData or charData.counter < accountData.counter or (charData.counter == accountData.counter and charData.date < accountData.date) then
-            ApplyCriteriaProgressToCharacter(characterGuid, accountWideProgress)
-            break
-        end
-    end
-end
-
 local function SyncCriteriaProgressOnSave(event, player)
     local accountId = player:GetAccountId()
+    local currentGuid = player:GetGUIDLow()
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
-    
-    local criteriaProgress, characterGuids = CollectAccountWideCriteriaProgress(accountId)
 
-    -- Apply to all characters on the account
-    for _, charGuid in ipairs(characterGuids) do
-        ApplyCriteriaProgressToCharacter(charGuid, criteriaProgress)
-    end
+    -- Delay to let character data finish saving to DB before syncing to other characters
+    CreateLuaEvent(function()
+        local criteriaProgress, characterGuids = CollectAccountWideCriteriaProgress(accountId)
+
+        -- Apply to all characters on the account
+        for _, guid in ipairs(characterGuids) do
+            if guid ~= currentGuid then
+                ApplyCriteriaProgressToCharacter(guid, criteriaProgress)
+            end
+        end
+    end, 1000, 1)
 end
 
 if ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS then
@@ -219,6 +199,5 @@ end
 
 if ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then
     RegisterPlayerEvent(1, SyncCriteriaProgressForNewCharacter) -- PLAYER_EVENT_ON_CHARACTER_CREATE
-    RegisterPlayerEvent(3, SyncCriteriaProgressOnLogin)      -- PLAYER_EVENT_ON_LOGIN
     RegisterPlayerEvent(25, SyncCriteriaProgressOnSave)     -- PLAYER_EVENT_ON_SAVE
 end
