@@ -9,6 +9,9 @@ local ENABLE_ACCOUNTWIDE_PETS = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Pets |rlua script."
 
+local RETROACTIVE_NOTIFY = true   -- notify the player when retroactive sync completes
+local RETROACTIVE_DELAY_MS = 150  -- small delay after backfill
+
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
@@ -204,24 +207,42 @@ local petSpellIDs = {
     1001029, -- Mr. Bigglesworth
 }
 
-local function InitializePetTable(accountId) 
-    local result = CharDBQuery("SELECT COUNT(*) AS count FROM accountwide_pets")
-    -- If the table is empty, then populate it
-    if result and result:GetUInt32(0) == 0 then
-        local charactersResult = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
-        if charactersResult then
-            repeat
-                local charGuid = charactersResult:GetUInt32(0)
-                for _, petSpellId in ipairs(petSpellIDs) do
-                    local spellQuery = string.format("SELECT DISTINCT spell FROM character_spell WHERE spell = %d AND guid = %d", petSpellId, charGuid)
-                    local charSpells = CharDBQuery(spellQuery)
-                    if charSpells then
-                        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_pets (accountId, petSpellId) VALUES (%d, %d)", accountId, petSpellId))
-                    end
-                end
-            until not charactersResult:NextRow()
+local PET_ID_SET, uniq_pets = {}, {}
+do
+    local seen = {}
+    for _, id in ipairs(petSpellIDs) do
+        if not seen[id] then
+            seen[id] = true
+            PET_ID_SET[id] = true
+            table.insert(uniq_pets, id)
         end
     end
+end
+
+local function csvInt(tbl)
+    local out = {}
+    for _, v in ipairs(tbl) do out[#out+1] = tostring(v) end
+    return table.concat(out, ",")
+end
+
+-- cache once at load:
+local PET_ID_CSV = csvInt(uniq_pets)
+
+local function InitializePetTable(accountId)
+    -- If this account already has any rows, skip backfill
+    local exists = CharDBQuery(string.format("SELECT 1 FROM accountwide_pets WHERE accountId = %d LIMIT 1", accountId))
+    if exists then return end
+
+    local sql = string.format([[
+        INSERT IGNORE INTO accountwide_pets (accountId, petSpellId)
+        SELECT c.account, cs.spell
+        FROM characters c
+        JOIN character_spell cs ON cs.guid = c.guid
+        WHERE c.account = %d AND cs.spell IN (%s)
+    ]], accountId, PET_ID_CSV)
+
+    CharDBExecute(sql)
+    return true
 end
 
 local function OnLearnNewPet(event, player, spellID)
@@ -229,11 +250,26 @@ local function OnLearnNewPet(event, player, spellID)
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
 
-    for _, petSpellId in ipairs(petSpellIDs) do
-        if spellID == petSpellId then
-            -- Insert into accountwide_pets table once a new pet is learned
-            CharDBExecute(string.format("INSERT IGNORE INTO accountwide_pets (accountId, petSpellId) VALUES (%d, %d)", accountId, petSpellId))
-            break
+    if PET_ID_SET[spellID] then
+        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_pets (accountId, petSpellId) VALUES (%d, %d)", accountId, spellID))
+    end
+end
+
+local function LearnOwnedPetsNow(player, accountId)
+    local ownedSet = {}
+    local owned = CharDBQuery(string.format("SELECT petSpellId FROM accountwide_pets WHERE accountId = %d", accountId))
+    if owned then
+        repeat
+            ownedSet[owned:GetUInt32(0)] = true
+        until not owned:NextRow()
+    end
+
+    if next(ownedSet) == nil then return end
+
+    -- Learn only those the account owns (and this character doesn't yet have)
+    for spellId in pairs(ownedSet) do
+        if not player:HasSpell(spellId) then
+            player:LearnSpell(spellId)
         end
     end
 end
@@ -247,16 +283,17 @@ local function SyncPetsToPlayer(event, player)
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    InitializePetTable(accountId)
-
-    for _, petSpellId in ipairs(petSpellIDs) do
-        if not player:HasSpell(petSpellId) then
-            local result = CharDBQuery(string.format("SELECT petSpellId FROM accountwide_pets WHERE accountId = %d AND petSpellId = %d", accountId, petSpellId))
-            -- Learn any pets that the player doesn't know if they are found in the table
-            if result then
-                player:LearnSpell(petSpellId)
-            end
+    local didBackfill = InitializePetTable(accountId)
+    if didBackfill then
+        if RETROACTIVE_NOTIFY then
+            player:SendBroadcastMessage("|cff9CC243[Accountwide Pets] Retroactive sync complete. Learning account pets...|r")
         end
+
+        player:RegisterEvent(function(_,_,_,p)
+            LearnOwnedPetsNow(p, accountId)
+        end, RETROACTIVE_DELAY_MS, 1)
+    else
+        LearnOwnedPetsNow(player, accountId)
     end
 end
 
