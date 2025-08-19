@@ -11,6 +11,9 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Mounts |r
 
 local MIN_MOUNT_LEVEL = 11  -- Minimum character level before mounts are learned
 
+local RETROACTIVE_NOTIFY = true   -- notify the player when retroactive sync completes
+local RETROACTIVE_DELAY_MS = 150  -- small delay after backfill
+
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
@@ -892,6 +895,7 @@ local function InitializeMountTable(accountId)
     ]], accountId, MOUNT_ID_CSV)
 
     CharDBExecute(sql)
+    return true
 end
 
 local function OnLearnNewMount(event, player, spellID)
@@ -901,6 +905,25 @@ local function OnLearnNewMount(event, player, spellID)
 
     if MOUNT_ID_SET[spellID] then
         CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, spellID))
+    end
+end
+
+local function LearnOwnedMountsNow(player, accountId)
+    local ownedSet = {}
+    local owned = CharDBQuery(string.format("SELECT mountSpellId FROM accountwide_mounts WHERE accountId = %d", accountId))
+    if owned then
+        repeat
+            ownedSet[owned:GetUInt32(0)] = true
+        until not owned:NextRow()
+    end
+
+    if next(ownedSet) == nil then return end
+
+    -- Learn only those the account owns (and this character doesn't yet have)
+    for spellId in pairs(ownedSet) do
+        if not player:HasSpell(spellId) then
+            player:LearnSpell(spellId)
+        end
     end
 end
 
@@ -918,23 +941,16 @@ local function SyncMountsToPlayer(event, player)
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    InitializeMountTable(accountId)
-
-    local ownedSet = {}
-    local owned = CharDBQuery(string.format("SELECT mountSpellId FROM accountwide_mounts WHERE accountId = %d", accountId))
-    if owned then
-        repeat
-            ownedSet[owned:GetUInt32(0)] = true
-        until not owned:NextRow()
-    end
-
-    if next(ownedSet) == nil then return end
-
-    -- Learn only those the account owns (and this character doesn't yet have)
-    for spellId in pairs(ownedSet) do
-        if not player:HasSpell(spellId) then
-            player:LearnSpell(spellId)
+    local didBackfill = InitializeMountTable(accountId)
+    if didBackfill then
+        if RETROACTIVE_NOTIFY then
+            player:SendBroadcastMessage("|cff9CC243[Accountwide Mounts] Retroactive sync complete. Learning account mounts...|r")
         end
+        player:RegisterEvent(function(_,_,_,p)
+            LearnOwnedMountsNow(p, accountId)
+        end, RETROACTIVE_DELAY_MS, 1)
+    else
+        LearnOwnedMountsNow(player, accountId)
     end
 end
 
