@@ -2,8 +2,6 @@
 -- ACCOUNTWIDE MOUNTS CONFIG
 --
 -- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
--- The original script came with the 396 original wotlk mounts.
--- It has been since expanded further with the addition of the exotic import mounts.
 ------------------------------------------------------------------------------------------------
 
 local ENABLE_ACCOUNTWIDE_MOUNTS = false
@@ -11,7 +9,7 @@ local ENABLE_ACCOUNTWIDE_MOUNTS = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Mounts |rlua script."
 
-local WhenPLayerLevel = 11  -- Minimum character level before mounts are learned
+local MIN_MOUNT_LEVEL = 11  -- Minimum character level before mounts are learned
 
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
@@ -859,24 +857,41 @@ local mountSpellIDs = {
     1700412, -- Uncorrupted Voidwing
 }
 
-local function InitializeMountTable(accountId) 
-    local result = CharDBQuery("SELECT COUNT(*) AS count FROM accountwide_mounts")
-    -- If the table is empty, then populate it
-    if result and result:GetUInt32(0) == 0 then
-        local charactersResult = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
-        if charactersResult then
-            repeat
-                local charGuid = charactersResult:GetUInt32(0)
-                for _, mountSpellId in ipairs(mountSpellIDs) do
-                    local spellQuery = string.format("SELECT DISTINCT spell FROM character_spell WHERE spell = %d AND guid = %d", mountSpellId, charGuid)
-                    local charSpells = CharDBQuery(spellQuery)
-                    if charSpells then
-                        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, mountSpellId))
-                    end
-                end
-            until not charactersResult:NextRow()
+local MOUNT_ID_SET, uniq_list = {}, {}
+do
+    local seen = {}
+    for _, id in ipairs(mountSpellIDs) do
+        if not seen[id] then
+            seen[id] = true
+            MOUNT_ID_SET[id] = true
+            table.insert(uniq_list, id)
         end
     end
+end
+
+local function csvInt(tbl)
+    local out = {}
+    for _, v in ipairs(tbl) do out[#out+1] = tostring(v) end
+    return table.concat(out, ",")
+end
+
+-- cache once at load:
+local MOUNT_ID_CSV = csvInt(uniq_list)
+
+local function InitializeMountTable(accountId)
+    -- If this account already has any rows, skip backfill
+    local exists = CharDBQuery(string.format("SELECT 1 FROM accountwide_mounts WHERE accountId = %d LIMIT 1", accountId))
+    if exists then return end
+
+    local sql = string.format([[
+        INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId)
+        SELECT c.account, cs.spell
+        FROM characters c
+        JOIN character_spell cs ON cs.guid = c.guid
+        WHERE c.account = %d AND cs.spell IN (%s)
+    ]], accountId, MOUNT_ID_CSV)
+
+    CharDBExecute(sql)
 end
 
 local function OnLearnNewMount(event, player, spellID)
@@ -884,12 +899,8 @@ local function OnLearnNewMount(event, player, spellID)
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
 
-    for _, mountSpellId in ipairs(mountSpellIDs) do
-        if spellID == mountSpellId then
-            -- Insert into accountwide_mounts table once a new mount is learned
-            CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, mountSpellId))
-            break
-        end
+    if MOUNT_ID_SET[spellID] then
+        CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, spellID))
     end
 end
 
@@ -898,16 +909,10 @@ local function SyncMountsToPlayer(event, player)
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
 
-    local Player_LeveL = player:GetLevel()
-    if (Player_LeveL < WhenPLayerLevel) then
-        return
-    end
-    if player:HasItem(90000, 1) then -- Hard Mode Key
-        return
-    end
-    if player:HasItem(800048, 1) then -- Slow and Steady Key
-        return
-    end
+    local playerLevel = player:GetLevel()
+    if (playerLevel < MIN_MOUNT_LEVEL) then return end
+    if player:HasItem(90000, 1) then return end -- Hard Mode Key
+    if player:HasItem(800048, 1) then return end -- Slow and Steady Key
 
     if (ANNOUNCE_ON_LOGIN and event) then
         player:SendBroadcastMessage(ANNOUNCEMENT)
@@ -915,13 +920,20 @@ local function SyncMountsToPlayer(event, player)
 
     InitializeMountTable(accountId)
 
-    for _, mountSpellId in ipairs(mountSpellIDs) do
-        if not player:HasSpell(mountSpellId) then
-            local result = CharDBQuery(string.format("SELECT mountSpellId FROM accountwide_mounts WHERE accountId = %d AND mountSpellId = %d", accountId, mountSpellId))
-            -- Learn any mounts that the player doesn't know if they are found in the table
-            if result then
-                player:LearnSpell(mountSpellId)
-            end
+    local ownedSet = {}
+    local owned = CharDBQuery(string.format("SELECT mountSpellId FROM accountwide_mounts WHERE accountId = %d", accountId))
+    if owned then
+        repeat
+            ownedSet[owned:GetUInt32(0)] = true
+        until not owned:NextRow()
+    end
+
+    if next(ownedSet) == nil then return end
+
+    -- Learn only those the account owns (and this character doesn't yet have)
+    for spellId in pairs(ownedSet) do
+        if not player:HasSpell(spellId) then
+            player:LearnSpell(spellId)
         end
     end
 end
@@ -934,7 +946,7 @@ local function OnSendLearnedSpell(event, packet, player)
     local spellId = packet:ReadULong()
     -- Apprentice Riding   Journeyman Riding   Expert Riding       Artisan Riding
     if spellId == 33388 or spellId == 33391 or spellId == 34090 or spellId == 34091 then
-        player:RegisterEvent((function(_,_,_,p) SyncMountsToPlayer(nil, p) end), 100)
+        player:RegisterEvent((function(_,_,_,p) SyncMountsToPlayer(nil, p) end), 100, 1)
     end
 end
 
