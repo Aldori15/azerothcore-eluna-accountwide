@@ -28,12 +28,12 @@ local hordeRaces = {
 
 local allianceFactions = {
     [47] = true, [54] = true, [69] = true, [72] = true, [469] = true, [471] = true, [509] = true, [589] = true, [730] = true, [890] = true,
-    [891] = true, [930] = true, [946] = true, [978] = true, [1037] = true, [1050] = true, [1068] = true, [1090] = true, [1094] = true, [1126] = true
+    [891] = true, [930] = true, [946] = true, [978] = true, [1037] = true, [1050] = true, [1068] = true, [1094] = true, [1126] = true
 }
 
 local hordeFactions = {
     [67] = true, [68] = true, [76] = true, [81] = true, [510] = true, [530] = true, [729] = true, [889] = true, [892] = true, [911] = true,
-    [922] = true, [941] = true, [947] = true, [1052] = true, [1064] = true, [1067] = true, [1085] = true, [1090] = true, [1124] = true
+    [922] = true, [941] = true, [947] = true, [1052] = true, [1064] = true, [1067] = true, [1085] = true, [1124] = true
 }
 
 -- Race specific ReputationBase values are defined in Faction.dbc
@@ -62,12 +62,13 @@ local function GetBaseReputationOffset(race, class, factionId)
             return 0
         end
     end
-    
+
     -- Default behavior for other factions (race-based reputation)
     local baseReputation = baseReputationValues[race]
     if baseReputation and baseReputation[factionId] then
         return baseReputation[factionId]
     end
+    
     return 0
 end
 
@@ -76,134 +77,276 @@ local function ClampReputation(value)
     return math.max(-42000, math.min(42000, value))
 end
 
-local function UpdateReputationForFaction(factionId, rawReputation, accountId, factionChecker)
-    local characterGuidsQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
+local function toCSV(intList)
+    local out = {}
+    for i = 1, #intList do out[i] = tostring(intList[i]) end
+    return table.concat(out, ",")
+end
 
-    if not characterGuidsQuery then
-        return -- No characters found for this account
+-- Batch upsert many rows in one statement
+local function execBatchUpsertReputation(rows)
+    if #rows == 0 then return end
+    local values = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        values[#values+1] = string.format("(%d,%d,%d)", row.guid, row.factionId, row.standing)
     end
-
-    repeat
-        local characterGuid = characterGuidsQuery:GetUInt32(0)
-        local race = characterGuidsQuery:GetUInt8(1)
-        local class = characterGuidsQuery:GetUInt8(2)
-
-        if factionChecker[race] or (not allianceFactions[factionId] and not hordeFactions[factionId]) then
-            -- Calculate the adjusted standing for each character using their own race's and class's base reputation offset
-            local baseReputationOffset = GetBaseReputationOffset(race, class, factionId)
-            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
-            CharDBExecute(string.format("UPDATE character_reputation SET standing = %d WHERE guid = %d AND faction = %d", adjustedStanding, characterGuid, factionId))
-        end
-    until not characterGuidsQuery:NextRow()
+    CharDBExecute([[
+        INSERT INTO character_reputation (guid, faction, standing)
+        VALUES ]] .. table.concat(values, ",") .. [[
+        ON DUPLICATE KEY UPDATE standing = VALUES(standing)
+    ]])
 end
 
 local function SetReputationOnSave(event, player)
     local accountId = player:GetAccountId()
-	-- Skip playerbot accounts
+    -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
-	
-    local characterGuid = player:GetGUIDLow()
-    local race = player:GetRace()
-    local isAlliance = allianceRaces[race]
-    local isHorde = hordeRaces[race]
 
-    local factionIDsQuery = CharDBQuery(string.format("SELECT faction FROM character_reputation WHERE guid = %d", characterGuid))
-    if not factionIDsQuery then
-        return -- No faction IDs found for this character
+    local savingGuid = player:GetGUIDLow()
+    local savingRace = player:GetRace()
+    local savingClass = player:GetClass()
+
+    local accountChars = {}
+    do
+        local charQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
+        if not charQuery then return end
+        repeat
+            accountChars[#accountChars+1] = {
+                guid = charQuery:GetUInt32(0),
+                race = charQuery:GetUInt8(1),
+                class = charQuery:GetUInt8(2),
+            }
+        until not charQuery:NextRow()
     end
 
-    repeat
-        local factionId = factionIDsQuery:GetUInt32(0)
-        local rawReputation = player:GetReputation(factionId)  -- Get the raw reputation from the player in-game before any conversion
+    if #accountChars == 0 then return end
 
-        -- Now pass the rawReputation to the update function, allowing it to calculate the correct adjusted standing per character
-        if isAlliance and allianceFactions[factionId] then
-            UpdateReputationForFaction(factionId, rawReputation, accountId, allianceRaces)
-        elseif isHorde and hordeFactions[factionId] then
-            UpdateReputationForFaction(factionId, rawReputation, accountId, hordeRaces)
-        elseif not allianceFactions[factionId] and not hordeFactions[factionId] then
-            -- Neutral faction, apply to all characters
-            UpdateReputationForFaction(factionId, rawReputation, accountId, allianceRaces)
-            UpdateReputationForFaction(factionId, rawReputation, accountId, hordeRaces)
+    local saverFactionIds = {}
+    do
+        local saverReps = CharDBQuery(string.format("SELECT faction FROM character_reputation WHERE guid = %d", savingGuid))
+        if not saverReps then return end
+        repeat
+            saverFactionIds[#saverFactionIds+1] = saverReps:GetUInt32(0)
+        until not saverReps:NextRow()
+    end
+    if #saverFactionIds == 0 then return end
+
+    local saverFactionIdCSV = toCSV(saverFactionIds)
+
+    local maxAdjustedAllianceByFaction = {}
+    local maxAdjustedHordeByFaction = {}
+    local maxAdjustedNeutralByFaction = {}
+
+    local maxHolderGuidsAlliance = {}
+    local maxHolderGuidsHorde = {}
+    local maxHolderGuidsNeutral = {}
+
+    do
+        local accountRepQuery = CharDBQuery(string.format([[
+            SELECT cr.guid, cr.faction, cr.standing, ch.race
+              FROM character_reputation cr
+              JOIN characters ch ON ch.guid = cr.guid
+             WHERE ch.account = %d
+               AND cr.faction IN (%s)
+        ]], accountId, saverFactionIdCSV))
+
+        if accountRepQuery then
+            repeat
+                local guid = accountRepQuery:GetUInt32(0)
+                local factionId = accountRepQuery:GetUInt32(1)
+                local adjustedStanding = accountRepQuery:GetInt32(2)
+                local holderRace = accountRepQuery:GetUInt8(3)
+
+                local isAllianceFaction = allianceFactions[factionId] == true
+                local isHordeFaction = hordeFactions[factionId] == true
+                local isNeutralFaction = (not isAllianceFaction and not isHordeFaction)
+
+                if isNeutralFaction then
+                    local current = maxAdjustedNeutralByFaction[factionId]
+                    if current == nil or adjustedStanding > current then
+                        maxAdjustedNeutralByFaction[factionId] = adjustedStanding
+                        maxHolderGuidsNeutral[factionId] = { [guid] = true }
+                    elseif adjustedStanding == current then
+                        maxHolderGuidsNeutral[factionId][guid] = true
+                    end
+
+                elseif isAllianceFaction and allianceRaces[holderRace] then
+                    local current = maxAdjustedAllianceByFaction[factionId]
+                    if current == nil or adjustedStanding > current then
+                        maxAdjustedAllianceByFaction[factionId] = adjustedStanding
+                        maxHolderGuidsAlliance[factionId] = { [guid] = true }
+                    elseif adjustedStanding == current then
+                        maxHolderGuidsAlliance[factionId][guid] = true
+                    end
+
+                elseif isHordeFaction and hordeRaces[holderRace] then
+                    local current = maxAdjustedHordeByFaction[factionId]
+                    if current == nil or adjustedStanding > current then
+                        maxAdjustedHordeByFaction[factionId] = adjustedStanding
+                        maxHolderGuidsHorde[factionId] = { [guid] = true }
+                    elseif adjustedStanding == current then
+                        maxHolderGuidsHorde[factionId][guid] = true
+                    end
+                end
+            until not accountRepQuery:NextRow()
         end
-    until not factionIDsQuery:NextRow()
+    end
+
+    -- Compute the saving character's CURRENT adjusted standings from memory
+    local savingAdjustedByFaction = {}
+    for _, factionId in ipairs(saverFactionIds) do
+        local rawTotal = player:GetReputation(factionId)
+        local baseOffset = GetBaseReputationOffset(savingRace, savingClass, factionId)
+        local adjusted = ClampReputation(rawTotal - baseOffset)
+        savingAdjustedByFaction[factionId] = adjusted
+    end
+
+    -- Decide target adjusted per faction, and batch write to all eligible chars
+    local rowsToWrite = {}
+
+    local function propagate(factionId, targetAdjusted, eligiblePredicate)
+        local clamped = ClampReputation(targetAdjusted or 0)
+        for i = 1, #accountChars do
+            local charInfo = accountChars[i]
+            if eligiblePredicate(charInfo.race) then
+                rowsToWrite[#rowsToWrite+1] = {
+                    guid = charInfo.guid,
+                    factionId = factionId,
+                    standing = clamped
+                }
+            end
+        end
+    end
+
+    for _, factionId in ipairs(saverFactionIds) do
+        local isAllianceFaction = allianceFactions[factionId] == true
+        local isHordeFaction = hordeFactions[factionId] == true
+        local isNeutralFaction = (not isAllianceFaction and not isHordeFaction)
+
+        local savingAdjusted = savingAdjustedByFaction[factionId] or 0
+
+        local rawMax, maxHolderGuids, eligible
+
+        if isNeutralFaction then
+            rawMax = maxAdjustedNeutralByFaction[factionId]
+            maxHolderGuids = maxHolderGuidsNeutral[factionId] or {}
+            eligible = function(_) return true end
+        elseif isAllianceFaction then
+            rawMax = maxAdjustedAllianceByFaction[factionId]
+            maxHolderGuids = maxHolderGuidsAlliance[factionId] or {}
+            eligible = function(race) return allianceRaces[race] == true end
+        else
+            rawMax = maxAdjustedHordeByFaction[factionId]
+            maxHolderGuids = maxHolderGuidsHorde[factionId] or {}
+            eligible = function(race) return hordeRaces[race] == true end
+        end
+
+        local hasExisting = (rawMax ~= nil)
+        local currentMaxAdjusted = rawMax or 0
+        local saverWasMaxHolder = maxHolderGuids[savingGuid] == true
+        local targetAdjusted
+
+        if not hasExisting then
+            -- First time this faction appears on the account: take the saver’s value as-is
+            targetAdjusted = savingAdjusted
+        elseif saverWasMaxHolder and savingAdjusted < currentMaxAdjusted then
+            -- True loss by a current max-holder -> propagate down
+            targetAdjusted = savingAdjusted
+        else
+            -- Gains or non-max-holder saves -> do not lower
+            targetAdjusted = math.max(currentMaxAdjusted, savingAdjusted)
+        end
+
+        propagate(factionId, targetAdjusted, eligible)
+    end
+
+    execBatchUpsertReputation(rowsToWrite)
+end
+
+-- Batch upsert many rows in one statement
+local function upsertManyForGuid(guid, factionToAdjustedStanding)
+    local rows = {}
+    for factionId, adjustedStanding in pairs(factionToAdjustedStanding) do
+        rows[#rows+1] = string.format("(%d,%d,%d)", guid, factionId, adjustedStanding)
+    end
+    if #rows == 0 then return end
+    CharDBExecute([[
+        INSERT INTO character_reputation (guid, faction, standing)
+        VALUES ]] .. table.concat(rows, ",") .. [[
+        ON DUPLICATE KEY UPDATE standing = VALUES(standing)
+    ]])
 end
 
 local function SetReputationOnCharacterCreate(event, player)
     local accountId = player:GetAccountId()
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
-	
-    local newCharacterGuidQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d ORDER BY guid DESC LIMIT 1", accountId))
-    if not newCharacterGuidQuery then
-        return -- No new character found
-    end
 
-    local newCharacterGuid = newCharacterGuidQuery:GetUInt32(0)
-    local newRace = newCharacterGuidQuery:GetUInt8(1)
-    local newClass = newCharacterGuidQuery:GetUInt8(2)
+    local newGuid = player:GetGUIDLow()
+    local newRace = player:GetRace()
 
-    local isAlliance = allianceRaces[newRace]
-    local isHorde = hordeRaces[newRace]
-    local existingReputations = {}
+    local newIsAlliance = allianceRaces[newRace] == true
+    local newIsHorde = hordeRaces[newRace] == true
 
-    local existingReputationQuery = CharDBQuery(string.format([[SELECT faction, MAX(standing) as standing FROM character_reputation WHERE guid IN (SELECT guid FROM characters WHERE account = %d) GROUP BY faction]], accountId))
+    local existingMaxAdjusted = CharDBQuery(string.format([[
+        SELECT mr.faction, mr.max_standing, ch.race, ch.class
+        FROM (
+            SELECT cr.faction, MAX(cr.standing) AS max_standing
+            FROM character_reputation cr
+            JOIN characters ch ON ch.guid = cr.guid
+            WHERE ch.account = %d
+            GROUP BY cr.faction
+        ) mr
+        JOIN character_reputation cr2
+          ON cr2.faction = mr.faction AND cr2.standing = mr.max_standing
+        JOIN characters ch
+          ON ch.guid = cr2.guid
+    ]], accountId))
 
-    if existingReputationQuery then
+    local adjustedProgressByFaction = {}
+
+    if existingMaxAdjusted then
         repeat
-            local factionId = existingReputationQuery:GetUInt32(0)
-            local standing = existingReputationQuery:GetInt32(1)
+            local factionId = existingMaxAdjusted:GetUInt32(0)
+            local maxAdjustedDelta = existingMaxAdjusted:GetInt32(1)
+            local holderRace = existingMaxAdjusted:GetUInt8(2)
 
-            -- Get the race of the character that has this faction reputation
-            local existingCharacterGuidQuery = CharDBQuery(string.format("SELECT guid FROM character_reputation WHERE faction = %d AND standing = %d LIMIT 1", factionId, standing))
-            if existingCharacterGuidQuery then
-                local existingCharacterGuid = existingCharacterGuidQuery:GetUInt32(0)
-                local existingRaceQuery = CharDBQuery(string.format("SELECT race, class FROM characters WHERE guid = %d", existingCharacterGuid))
-                if existingRaceQuery then
-                    local existingRace = existingRaceQuery:GetUInt8(0)
-                    local existingClass = existingRaceQuery:GetUInt8(1)
+            local holderIsAlliance = allianceRaces[holderRace] == true
+            local holderIsHorde = hordeRaces[holderRace] == true
+            local isNeutralFaction = (not allianceFactions[factionId]) and (not hordeFactions[factionId])
 
-                    local existingRaceIsAlliance = allianceRaces[existingRace]
-                    local existingRaceIsHorde = hordeRaces[existingRace]
-
-                    -- Only consider reputations from the same faction or neutral faction
-                    if (isAlliance and existingRaceIsAlliance) or (isHorde and existingRaceIsHorde) or
-                       (not allianceFactions[factionId] and not hordeFactions[factionId]) then
-                        local rawReputation = standing + GetBaseReputationOffset(existingRace, existingClass, factionId)
-                        existingReputations[factionId] = rawReputation
-                    end
-                end
+            -- Only adopt progress from same-side factions or neutrals
+            if isNeutralFaction or (newIsAlliance and holderIsAlliance) or (newIsHorde and holderIsHorde) then
+                adjustedProgressByFaction[factionId] = maxAdjustedDelta
             end
-        until not existingReputationQuery:NextRow()
+        until not existingMaxAdjusted:NextRow()
     end
 
-    -- Sync reputation data for the new character based on alliance, horde and neutral factions
-    for factionId, _ in pairs(allianceFactions) do
-        if isAlliance then
-            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
-            local rawReputation = existingReputations[factionId] or baseReputationOffset
-            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
-            CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
+    -- Build all rows for the new character in memory
+    local rowsForNew = {}
+
+    if newIsAlliance then
+        for factionId, _ in pairs(allianceFactions) do
+            local adjusted = adjustedProgressByFaction[factionId] or 0
+            rowsForNew[factionId] = ClampReputation(adjusted)
+        end
+    elseif newIsHorde then
+        for factionId, _ in pairs(hordeFactions) do
+            local adjusted = adjustedProgressByFaction[factionId] or 0
+            rowsForNew[factionId] = ClampReputation(adjusted)
         end
     end
 
-    for factionId, _ in pairs(hordeFactions) do
-        if isHorde then
-            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
-            local rawReputation = existingReputations[factionId] or baseReputationOffset
-            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
-            CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
+    -- Neutral factions
+    for factionId, adjusted in pairs(adjustedProgressByFaction) do
+        local isNeutral = (not allianceFactions[factionId]) and (not hordeFactions[factionId])
+        if isNeutral then
+            rowsForNew[factionId] = ClampReputation(adjusted)
         end
     end
 
-    for factionId in pairs(existingReputations) do
-        if not allianceFactions[factionId] and not hordeFactions[factionId] then
-            local baseReputationOffset = GetBaseReputationOffset(newRace, newClass, factionId)
-            local rawReputation = existingReputations[factionId] or baseReputationOffset
-            local adjustedStanding = ClampReputation(rawReputation - baseReputationOffset)
-            CharDBExecute(string.format("INSERT INTO character_reputation (guid, faction, standing) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE standing = %d", newCharacterGuid, factionId, adjustedStanding, adjustedStanding))
-        end
-    end
+    upsertManyForGuid(newGuid, rowsForNew)
 end
 
 local function BroadcastLoginAnnouncement(event, player)
