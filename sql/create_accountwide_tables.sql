@@ -8,6 +8,15 @@ CREATE TABLE IF NOT EXISTS `accountwide_achievements` (
     PRIMARY KEY (`accountId`, `achievementId`)
 );
 
+-- Create the accountwide_criteria_max table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_criteria_max` (
+  `accountId` INT UNSIGNED NOT NULL,
+  `criteria` INT UNSIGNED NOT NULL,
+  `counter` INT UNSIGNED NOT NULL,
+  `date` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`accountId`, `criteria`)
+) ENGINE=InnoDB;
+
 -- Create the accountwide_currency table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_currency` (
     `accountId` INT UNSIGNED NOT NULL,
@@ -34,6 +43,15 @@ CREATE TABLE IF NOT EXISTS `accountwide_pets` (
     `accountId` INT UNSIGNED NOT NULL,
     `petSpellId` INT UNSIGNED NOT NULL,
     PRIMARY KEY (`accountId`, `petSpellId`)
+);
+
+-- Create the accountwide_professions table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_professions` (
+  `accountId` INT NOT NULL,
+  `professionId` INT NOT NULL,
+  `currentVal` SMALLINT NOT NULL DEFAULT 0,
+  `maxVal` SMALLINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`accountId`, `professionId`)
 );
 
 -- Create the accountwide_pvp_rank table if it doesn't already exist
