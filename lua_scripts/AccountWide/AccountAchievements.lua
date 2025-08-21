@@ -89,115 +89,236 @@ local function SyncCompletedAchievementsOnLogin(event, player)
     AddMissingAchievements(player, achievements)
 end
 
-local function CollectAccountWideCriteriaProgress(accountId)
-    local criteriaProgress = {}
-    local characterGuids = {}
-
-    -- Collect all character GUIDs for the account
-    local charQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
-    if charQuery then
-        repeat
-            local guid = charQuery:GetUInt32(0)
-            table.insert(characterGuids, guid)
-        until not charQuery:NextRow()
-    end
-
-    local progressQuery = CharDBQuery(string.format([[
-        SELECT guid, criteria, counter, date
-        FROM character_achievement_progress
-        WHERE guid IN (SELECT guid FROM characters WHERE account = %d)
-    ]], accountId))
-
-    if progressQuery then
-        repeat
-            local guid = progressQuery:GetUInt32(0)
-            local criteria = progressQuery:GetUInt32(1)
-            local counter = progressQuery:GetUInt32(2)
-            local date = progressQuery:GetUInt32(3)
-
-            local existing = criteriaProgress[criteria]
-            if not existing or existing.counter < counter then
-                criteriaProgress[criteria] = { counter = counter, date = date }
-            elseif existing.counter == counter and existing.date < date then
-                criteriaProgress[criteria].date = date
-            end
-        until not progressQuery:NextRow()
-    end
-
-    return criteriaProgress, characterGuids
-end
-
-local function ExecCriteriaProgressBatch(batchRows)
-    if #batchRows == 0 then return end
-    local query = [[
-        INSERT INTO character_achievement_progress (guid, criteria, counter, date)
-        VALUES %s
-        ON DUPLICATE KEY UPDATE
-            counter = VALUES(counter),
-            date    = VALUES(date)
-    ]]
-    local sql = string.format(query, table.concat(batchRows, ", "))
-    CharDBExecute(sql)
-end
-
-local function ApplyCriteriaProgressToCharacter(targetGuid, criteriaProgress)
-    local batch, count = {}, 0
-    local PROGRESS_BATCH_SIZE = 500
-
-    for criteria, data in pairs(criteriaProgress) do
-        local counter = tonumber(data.counter) or 0
-        local date = tonumber(data.date) or 0
-
-        table.insert(batch, string.format("(%d, %d, %d, %d)", targetGuid, criteria, counter, date))
-        count = count + 1
-
-        if count >= PROGRESS_BATCH_SIZE then
-            ExecCriteriaProgressBatch(batch)
-            batch = {}
-            count = 0
-        end
-    end
-
-    if count > 0 then
-        ExecCriteriaProgressBatch(batch)
-    end
-end
-
-local function SyncCriteriaProgressForNewCharacter(event, player)
-    local accountId = player:GetAccountId()
-    -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
-
-    local newCharacterGuid = player:GetGUIDLow()
-    local criteriaProgress = CollectAccountWideCriteriaProgress(accountId)
-
-    ApplyCriteriaProgressToCharacter(newCharacterGuid, criteriaProgress)
-end
-
-local function SyncCriteriaProgressOnSave(event, player)
-    local accountId = player:GetAccountId()
-    local currentGuid = player:GetGUIDLow()
-    -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
-
-    -- Delay to let character data finish saving to DB before syncing to other characters
-    CreateLuaEvent(function()
-        local criteriaProgress, characterGuids = CollectAccountWideCriteriaProgress(accountId)
-
-        -- Apply to all characters on the account
-        for _, guid in ipairs(characterGuids) do
-            if guid ~= currentGuid then
-                ApplyCriteriaProgressToCharacter(guid, criteriaProgress)
-            end
-        end
-    end, 1000, 1)
-end
-
 if ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS then
     RegisterPlayerEvent(3, SyncCompletedAchievementsOnLogin) -- PLAYER_EVENT_ON_LOGIN
 end
 
-if ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then
-    RegisterPlayerEvent(1, SyncCriteriaProgressForNewCharacter) -- PLAYER_EVENT_ON_CHARACTER_CREATE
-    RegisterPlayerEvent(25, SyncCriteriaProgressOnSave)     -- PLAYER_EVENT_ON_SAVE
+-- ====================
+--  Criteria Progress
+-- ====================
+
+local PROGRESS_BATCH_SIZE = 500
+
+-- Batch insert into character_achievement_progress
+local function ExecuteCharacterProgressBatch(batchRows)
+    if #batchRows == 0 then return end
+    CharDBExecute([[
+        INSERT INTO character_achievement_progress (guid, criteria, counter, date)
+        VALUES ]] .. table.concat(batchRows, ", ") .. [[
+        ON DUPLICATE KEY UPDATE
+            counter = IF(VALUES(counter) > counter, VALUES(counter), counter),
+            date = IF(VALUES(counter) > counter, VALUES(date), GREATEST(date, VALUES(date)))
+    ]])
 end
+
+-- Batch insert into accountwide_criteria_max
+local function ExecuteAccountMaxBatch(batchRows)
+    if #batchRows == 0 then return end
+    CharDBExecute([[
+        INSERT INTO accountwide_criteria_max (accountId, criteria, counter, date)
+        VALUES ]] .. table.concat(batchRows, ", ") .. [[
+        ON DUPLICATE KEY UPDATE
+            counter = IF(VALUES(counter) > counter, VALUES(counter), counter),
+            date = IF(VALUES(counter) > counter, VALUES(date), GREATEST(date, VALUES(date)))
+    ]])
+end
+
+-- Load all progress for the saving character only
+local function LoadCharacterCriteriaProgress(characterGuid)
+    local progressByCriteria = {}
+    local query = CharDBQuery(string.format([[
+        SELECT criteria, counter, date
+          FROM character_achievement_progress
+         WHERE guid = %d
+    ]], characterGuid))
+
+    if query then
+        repeat
+            local criteriaId = query:GetUInt32(0)
+            local counterValue = query:GetUInt32(1)
+            local progressDate = query:GetUInt32(2)
+            progressByCriteria[criteriaId] = { counter = counterValue, date = progressDate }
+        until not query:NextRow()
+    end
+    return progressByCriteria
+end
+
+-- Load cached account maxima only for criteria that changed
+local function LoadAccountMaxForCriteria(accountId, criteriaList)
+    if #criteriaList == 0 then return {} end
+    local criteriaCSV = table.concat(criteriaList, ",")
+    local maxByCriteria = {}
+    local query = CharDBQuery(string.format([[
+        SELECT criteria, counter, date
+          FROM accountwide_criteria_max
+         WHERE accountId = %d
+           AND criteria IN (%s)
+    ]], accountId, criteriaCSV))
+
+    if query then
+        repeat
+            local criteriaId = query:GetUInt32(0)
+            local counterValue = query:GetUInt32(1)
+            local progressDate = query:GetUInt32(2)
+            maxByCriteria[criteriaId] = { counter = counterValue, date = progressDate }
+        until not query:NextRow()
+    end
+    return maxByCriteria
+end
+
+-- Compare saver’s progress vs account maxima, update account cache if increased
+local function ComputeDeltasAndUpdateAccountMax(accountId, saverProgress)
+    local criteriaList = {}
+    for criteriaId, _ in pairs(saverProgress) do
+        table.insert(criteriaList, criteriaId)
+    end
+    if #criteriaList == 0 then return {} end
+
+    local currentMaxByCriteria = LoadAccountMaxForCriteria(accountId, criteriaList)
+    local updatedCriteria = {}
+    local batch, count = {}, 0
+
+    for criteriaId, progress in pairs(saverProgress) do
+        local shouldUpdate = false
+        local current = currentMaxByCriteria[criteriaId]
+
+        if not current then
+            shouldUpdate = true
+        elseif progress.counter > current.counter then
+            shouldUpdate = true
+        elseif progress.counter == current.counter and progress.date > current.date then
+            shouldUpdate = true
+        end
+
+        if shouldUpdate then
+            updatedCriteria[criteriaId] = { counter = progress.counter, date = progress.date }
+            batch[#batch+1] = string.format("(%d,%d,%d,%d)", accountId, criteriaId, progress.counter, progress.date)
+            count = count + 1
+
+            if count >= PROGRESS_BATCH_SIZE then
+                ExecuteAccountMaxBatch(batch)
+                batch = {}
+                count = 0
+            end
+        end
+    end
+
+    if count > 0 then ExecuteAccountMaxBatch(batch) end
+    return updatedCriteria
+end
+
+-- Push only the updated criteria to other characters on the account
+local function PropagateDeltasToOtherCharacters(accountId, saverGuid, updatedCriteria)
+    if next(updatedCriteria) == nil then return end
+
+    -- Get all other characters on the account
+    local otherCharacterGuids = {}
+    local characterQuery = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d", accountId))
+    if characterQuery then
+        repeat
+            local guid = characterQuery:GetUInt32(0)
+            if guid ~= saverGuid then
+                otherCharacterGuids[#otherCharacterGuids+1] = guid
+            end
+        until not characterQuery:NextRow()
+    end
+    if #otherCharacterGuids == 0 then return end
+
+    -- Build IN lists
+    local criteriaList, criteriaCSV = {}, ""
+    for criteriaId, _ in pairs(updatedCriteria) do
+        table.insert(criteriaList, criteriaId)
+    end
+    criteriaCSV = table.concat(criteriaList, ",")
+    local guidCSV = table.concat(otherCharacterGuids, ",")
+
+    -- Fetch current values for just these criteria and characters
+    local currentProgress = {} -- currentProgress[guid][criteria] = counter
+    local query = CharDBQuery(string.format([[
+        SELECT guid, criteria, counter
+          FROM character_achievement_progress
+         WHERE guid IN (%s)
+           AND criteria IN (%s)
+    ]], guidCSV, criteriaCSV))
+
+    if query then
+        repeat
+            local guid = query:GetUInt32(0)
+            local criteriaId = query:GetUInt32(1)
+            local counterValue = query:GetUInt32(2)
+            if not currentProgress[guid] then currentProgress[guid] = {} end
+            currentProgress[guid][criteriaId] = counterValue
+        until not query:NextRow()
+    end
+
+    -- Apply updates only if the target value is lower
+    local batch, count = {}, 0
+    for _, targetGuid in ipairs(otherCharacterGuids) do
+        local progressByCriteria = currentProgress[targetGuid] or {}
+        for criteriaId, updatedRow in pairs(updatedCriteria) do
+            local currentValue = progressByCriteria[criteriaId] or 0
+            if currentValue < updatedRow.counter then
+                batch[#batch+1] = string.format("(%d,%d,%d,%d)", targetGuid, criteriaId, updatedRow.counter, updatedRow.date)
+                count = count + 1
+                if count >= PROGRESS_BATCH_SIZE then
+                    ExecuteCharacterProgressBatch(batch)
+                    batch = {}
+                    count = 0
+                end
+            end
+        end
+    end
+    if count > 0 then ExecuteCharacterProgressBatch(batch) end
+end
+
+-- On character create: copy account maxima into the new character
+local function SyncCriteriaProgressOnCharacterCreate(event, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+    local newCharacterGuid = player:GetGUIDLow()
+
+    local query = CharDBQuery(string.format([[
+        SELECT criteria, counter, date
+          FROM accountwide_criteria_max
+         WHERE accountId = %d
+    ]], accountId))
+
+    if not query then return end
+
+    local batch, count = {}, 0
+    repeat
+        local criteriaId = query:GetUInt32(0)
+        local counterValue = query:GetUInt32(1)
+        local progressDate = query:GetUInt32(2)
+        batch[#batch+1] = string.format("(%d,%d,%d,%d)", newCharacterGuid, criteriaId, counterValue, progressDate)
+        count = count + 1
+        if count >= PROGRESS_BATCH_SIZE then
+            ExecuteCharacterProgressBatch(batch)
+            batch = {}
+            count = 0
+        end
+    until not query:NextRow()
+    if count > 0 then ExecuteCharacterProgressBatch(batch) end
+end
+
+-- On save: check saver’s deltas, update account maxima, then push to others
+local function SyncCriteriaProgressOnSave(event, player)
+    local accountId = player:GetAccountId()
+    -- Skip playerbot accounts
+    if AUtils.isPlayerBotAccount(accountId) then return end
+    local saverGuid = player:GetGUIDLow()
+
+    -- slight delay to let the core flush the saver’s own rows first
+    CreateLuaEvent(function()
+        local saverProgress = LoadCharacterCriteriaProgress(saverGuid)
+        local updatedCriteria = ComputeDeltasAndUpdateAccountMax(accountId, saverProgress)
+        PropagateDeltasToOtherCharacters(accountId, saverGuid, updatedCriteria)
+    end, 1000, 1)
+end
+
+if ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then
+    RegisterPlayerEvent(1,  SyncCriteriaProgressOnCharacterCreate) -- PLAYER_EVENT_ON_CHARACTER_CREATE
+    RegisterPlayerEvent(25, SyncCriteriaProgressOnSave) -- PLAYER_EVENT_ON_SAVE
+end
+
