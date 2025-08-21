@@ -45,14 +45,14 @@ CREATE TABLE IF NOT EXISTS `accountwide_pets` (
     PRIMARY KEY (`accountId`, `petSpellId`)
 );
 
--- Create the accountwide_professions table if it doesn't already exist
-CREATE TABLE IF NOT EXISTS `accountwide_professions` (
-  `accountId` INT NOT NULL,
-  `professionId` INT NOT NULL,
-  `currentVal` SMALLINT NOT NULL DEFAULT 0,
-  `maxVal` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`accountId`, `professionId`)
-);
+-- -- Create the accountwide_professions table if it doesn't already exist (currently a WIP and not used)
+-- CREATE TABLE IF NOT EXISTS `accountwide_professions` (
+--   `accountId` INT NOT NULL,
+--   `professionId` INT NOT NULL,
+--   `currentVal` SMALLINT NOT NULL DEFAULT 0,
+--   `maxVal` SMALLINT NOT NULL DEFAULT 0,
+--   PRIMARY KEY (`accountId`, `professionId`)
+-- );
 
 -- Create the accountwide_pvp_rank table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_pvp_rank` (
