@@ -14,6 +14,7 @@ local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
 local DEBUG_MODE = false  -- Toggle debug messages
+local BATCH_SIZE = 500    -- Safety cap for SQL VALUES batching
 
 -- ------------------------------------------------------------------------------------------------
 -- END CONFIG
@@ -23,8 +24,33 @@ local AUtils = AccountWideUtils
 
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
-local function tableContains(set, value)
-    return set[value] ~= nil
+local function toSet(list)
+    local set = {}
+    for i = 1, #list do set[list[i]] = true end
+    return set
+end
+
+local function factionTableName(team) -- 0 = Alliance, 1 = Horde
+    return (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
+end
+
+local function batchInsertIgnore(tableName, accountId, nodeIds)
+    if #nodeIds == 0 then return end
+
+    local values, count = {}, 0
+    for i = 1, #nodeIds do
+        values[#values + 1] = string.format("(%d,%d)", accountId, nodeIds[i])
+        count = count + 1
+
+        if count == BATCH_SIZE then
+            CharDBExecute(("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES %s"):format(tableName, table.concat(values, ",")))
+            values, count = {}, 0
+        end
+    end
+
+    if count > 0 then
+        CharDBExecute(("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES %s"):format(tableName, table.concat(values, ",")))
+    end
 end
 
 local function OnPlayerLogin(event, player)
@@ -32,38 +58,31 @@ local function OnPlayerLogin(event, player)
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
 
-    local team = player:GetTeam()  -- 0 = Alliance, 1 = Horde
-    local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
+    if ANNOUNCE_ON_LOGIN then
+        player:SendBroadcastMessage(ANNOUNCEMENT)
+    end
 
-    local query = string.format("SELECT nodeId FROM `%s` WHERE accountId = %d", tableName, accountId)
-    local result = CharDBQuery(query)
+    local tableName = factionTableName(player:GetTeam())
+    local nodes = CharDBQuery(("SELECT nodeId FROM `%s` WHERE accountId = %d"):format(tableName, accountId))
+    if not nodes then return end
 
-    if result then
-        local knownNodes = player:GetKnownTaxiNodes()
-        local knownSet = {}
-        for _, nodeId in ipairs(knownNodes) do
-            knownSet[nodeId] = true
-            if DEBUG_MODE then
-                print("[DEBUG] Known Taxi Node:", nodeId)
-            end
+    local knownNodes = player:GetKnownTaxiNodes() or {}
+    local playerSet = toSet(knownNodes)
+
+    -- Collect missing nodes to grant this character
+    local toGrant = {}
+    repeat
+        local nodeId = nodes:GetUInt32(0)
+        if not playerSet[nodeId] then
+            toGrant[#toGrant + 1] = nodeId
         end
+    until not nodes:NextRow()
 
-        local newNodes = {}
-
-        repeat
-            local nodeId = result:GetUInt32(0)
-            if not tableContains(knownSet, nodeId) then
-                table.insert(newNodes, nodeId)
-            end
-        until not result:NextRow()
-
-        if #newNodes > 0 then
-            player:SetKnownTaxiNodes(newNodes)
+    if #toGrant > 0 then
+        if DEBUG_MODE then
+            print(string.format("[Taxi]: Granting %d nodes to guid=%d", #toGrant, player:GetGUIDLow()))
         end
-
-        if ANNOUNCE_ON_LOGIN then
-            player:SendBroadcastMessage(ANNOUNCEMENT)
-        end
+        player:SetKnownTaxiNodes(toGrant)
     end
 end
 
@@ -72,13 +91,14 @@ local function OnPlayerLogout(event, player)
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
 
-    local team = player:GetTeam()
-    local tableName = (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
-    local knownNodes = player:GetKnownTaxiNodes()
+    local tableName = factionTableName(player:GetTeam())
+    local knownNodes = player:GetKnownTaxiNodes() or {}
 
-    for _, nodeId in ipairs(knownNodes) do
-        local insertQuery = string.format("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES (%d, %d)", tableName, accountId, nodeId)
-        CharDBExecute(insertQuery)
+    if #knownNodes > 0 then
+        if DEBUG_MODE then
+            print(string.format("[Taxi]: Syncing %d nodes for accountId=%d (%s)", #knownNodes, accountId, tableName))
+        end
+        batchInsertIgnore(tableName, accountId, knownNodes)
     end
 end
 
