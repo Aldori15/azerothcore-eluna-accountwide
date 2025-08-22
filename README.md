@@ -41,7 +41,7 @@ Neutral factions will be shared to both.
 
 ### Taxi Paths / Flight Paths
 IMPORTANT!!!!
-This script will require my fork of `mod-eluna` found here: https://github.com/Aldori15/mod-eluna.  I had to add new C++ methods to Eluna to expose the taxi node data.  Alternatively you can use this PR to acore's main Eluna repo, but at the time of this writing they still have not accepted my PR.  So if you use this PR you will need to manually merge it with your repo: https://github.com/azerothcore/mod-eluna/pull/260.  The simplest method though is to just use my forked version which contains everything that the main acore repo has plus additional features and bug fixes.
+This script will require my fork of `mod-eluna` found [here](https://github.com/Aldori15/mod-eluna). I had to add new C++ methods to Eluna to expose the taxi node data.  I submitted a pull request to Acore's main Eluna repo, so you could alternatively use that with at least [this commit](https://github.com/azerothcore/mod-eluna/commit/bcfe631307cda63514492366f659549ecf050854).
 
 This script will synchronize learned flight paths across all characters on your account that are within the same faction.
     	
@@ -62,3 +62,4 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 > [!WARNING]
 > # If you use AccountReputation:
 > - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is HIGHLY recommended to install this on a fresh server.
+
