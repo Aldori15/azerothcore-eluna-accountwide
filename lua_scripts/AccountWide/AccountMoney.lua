@@ -52,25 +52,28 @@ end
 
 local function SyncCharacterMoneyOnLogin(player, accountId)
     local totalAccountMoney = GetTotalAccountMoney(accountId)
-    local currentMoney = player:GetCoinage()
+    local currentMoney = player:GetCoinage() or 0
 
-    -- Calculate the difference and adjust the player's money accordingly
-    if totalAccountMoney > currentMoney then
+    -- If char has MORE than account, push UP to account (never cut char on login)
+    if currentMoney > totalAccountMoney then
+        AddDeltaToAccountMoney(accountId, currentMoney - totalAccountMoney)
+        return
+    end
+
+    -- If account has more than char, only the primary should pull DOWN
+    if totalAccountMoney > currentMoney and AUtils.shouldDoDownsync(player) then
         player:ModifyMoney(totalAccountMoney - currentMoney)
-    elseif totalAccountMoney < currentMoney then
-        player:ModifyMoney(-(currentMoney - totalAccountMoney))
     end
 end
 
 local function AccountMoney(event, player)
     local accountId = player:GetAccountId()
 
-    -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    -- RNDbots: skip entirely. Altbots: we still process deltas, we just avoid downsync.
+    if AUtils.shouldSkipAll(player) then return end
 
-    if player:HasItem(800086) then  -- Unfair Taxes Key (Taxation Without Representation Mode)
-        return
-    end
+    -- Skip if player is using Taxation Without Representation Mode
+    if player:HasItem(800086) then return end  -- Unfair Taxes Key
 
     if event == 3 then
         -- If the account has any rows, then it has already been seeded
@@ -83,7 +86,7 @@ local function AccountMoney(event, player)
             SyncCharacterMoneyOnLogin(player, accountId)
             lastSyncedMoney[player:GetGUIDLow()] = player:GetCoinage() or 0
         end, 1000, 1)
-        
+
         if ANNOUNCE_ON_LOGIN then
             player:SendBroadcastMessage(ANNOUNCEMENT)
         end
