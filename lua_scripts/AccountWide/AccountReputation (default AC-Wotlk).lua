@@ -73,8 +73,8 @@ local function GetBaseReputationOffset(race, class, factionId)
 end
 
 local function ClampReputation(value)
-    -- Clamp the standing between -42000 and 42000 to prevent overflows
-    return math.max(-42000, math.min(42000, value))
+    -- Clamp highest and lowest possible adjusted standing to prevent overflows
+    return math.max(-46000, math.min(84000, value))
 end
 
 local function toCSV(intList)
