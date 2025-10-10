@@ -130,9 +130,9 @@ local function SyncPvPRankOnLogin(event, player)
 end
 
 -- ----------------------------------------------------------------------------------------------
--- On Save: sync character values to accountwide + all other characters
+-- On Logout: sync character values to accountwide + all other characters
 -- ----------------------------------------------------------------------------------------------
-local function SyncPvPRankOnSave(event, player)
+local function SyncPvPRankOnLogout(event, player)
     local accountId = player:GetAccountId()
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
@@ -190,5 +190,5 @@ end
 if ENABLE_ACCOUNTWIDE_PVP_RANK then
     InitializeAccountwidePvPRankTable()
     RegisterPlayerEvent(3, SyncPvPRankOnLogin)  -- EVENT_ON_LOGIN
-    RegisterPlayerEvent(25, SyncPvPRankOnSave)  -- EVENT_ON_SAVE
+    RegisterPlayerEvent(4, SyncPvPRankOnLogout)  -- EVENT_ON_LOGOUT
 end

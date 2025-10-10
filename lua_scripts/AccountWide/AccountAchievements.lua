@@ -302,8 +302,8 @@ local function SyncCriteriaProgressOnCharacterCreate(event, player)
     if count > 0 then ExecuteCharacterProgressBatch(batch) end
 end
 
--- On save: check saver’s deltas, update account maxima, then push to others
-local function SyncCriteriaProgressOnSave(event, player)
+-- On logout: check saver’s deltas, update account maxima, then push to others
+local function SyncCriteriaProgressOnLogout(event, player)
     local accountId = player:GetAccountId()
     -- Skip playerbot accounts
     if AUtils.isPlayerBotAccount(accountId) then return end
@@ -318,7 +318,6 @@ local function SyncCriteriaProgressOnSave(event, player)
 end
 
 if ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then
-    RegisterPlayerEvent(1,  SyncCriteriaProgressOnCharacterCreate) -- PLAYER_EVENT_ON_CHARACTER_CREATE
-    RegisterPlayerEvent(25, SyncCriteriaProgressOnSave) -- PLAYER_EVENT_ON_SAVE
+    RegisterPlayerEvent(1, SyncCriteriaProgressOnCharacterCreate) -- PLAYER_EVENT_ON_CHARACTER_CREATE
+    RegisterPlayerEvent(4, SyncCriteriaProgressOnLogout) -- PLAYER_EVENT_ON_LOGOUT
 end
-
