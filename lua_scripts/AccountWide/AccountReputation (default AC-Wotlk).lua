@@ -19,11 +19,11 @@ if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
 
 -- Alliance and Horde race and faction definitions
 local allianceRaces = {
-    [1] = true, [3] = true, [4] = true, [7] = true, [11] = true, [12] = true, [14] = true, [16] = true, [19] = true, [20] = true
+    [1] = true, [3] = true, [4] = true, [7] = true, [11] = true
 }
 
 local hordeRaces = {
-    [2] = true, [5] = true, [6] = true, [8] = true, [9] = true, [10] = true, [13] = true, [15] = true, [17] = true, [21] = true
+    [2] = true, [5] = true, [6] = true, [8] = true, [10] = true
 }
 
 local allianceFactions = {
