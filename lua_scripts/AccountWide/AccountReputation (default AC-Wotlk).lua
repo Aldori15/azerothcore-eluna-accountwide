@@ -13,9 +13,9 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputatio
 -- END CONFIG
 -- -- ------------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
+
+local AUtils = AccountWideUtils
 
 -- Alliance and Horde race and faction definitions
 local allianceRaces = {

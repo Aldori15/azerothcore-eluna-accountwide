@@ -16,9 +16,9 @@ local RETROACTIVE_DELAY_MS = 150  -- small delay after backfill
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_PETS then return end
+
+local AUtils = AccountWideUtils
 
 local petSpellIDs = {
     4055,  -- Mechanical Squirrel

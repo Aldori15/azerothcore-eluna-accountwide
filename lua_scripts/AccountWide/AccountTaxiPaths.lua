@@ -20,9 +20,9 @@ local BATCH_SIZE = 500    -- Safety cap for SQL VALUES batching
 -- END CONFIG
 -- ------------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
+
+local AUtils = AccountWideUtils
 
 local function toSet(list)
     local set = {}

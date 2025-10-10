@@ -15,9 +15,9 @@ local BATCH_SIZE = 100 -- SQL batching for fewer DB calls
 -- END CONFIG
 -------------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_TITLES then return end
+
+local AUtils = AccountWideUtils
 
 -- Valid title IDs from your CharTitles.dbc
 local VALID_TITLE_IDS = {

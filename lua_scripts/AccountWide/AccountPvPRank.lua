@@ -11,6 +11,9 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide PvP Rank 
 -- ----------------------------------------------------------------------------------------------
 -- Initialize SQL Table (called once at server start)
 -- ----------------------------------------------------------------------------------------------
+
+if not ENABLE_ACCOUNTWIDE_PVP_RANK then return end
+
 local AUtils = AccountWideUtils
 
 local function InitializeAccountwidePvPRankTable()
@@ -187,8 +190,6 @@ end
 -- ----------------------------------------------------------------------------------------------
 -- Register Events
 -- ----------------------------------------------------------------------------------------------
-if ENABLE_ACCOUNTWIDE_PVP_RANK then
-    InitializeAccountwidePvPRankTable()
-    RegisterPlayerEvent(3, SyncPvPRankOnLogin)  -- EVENT_ON_LOGIN
-    RegisterPlayerEvent(4, SyncPvPRankOnLogout)  -- EVENT_ON_LOGOUT
-end
+InitializeAccountwidePvPRankTable()
+RegisterPlayerEvent(3, SyncPvPRankOnLogin)  -- EVENT_ON_LOGIN
+RegisterPlayerEvent(4, SyncPvPRankOnLogout)  -- EVENT_ON_LOGOUT

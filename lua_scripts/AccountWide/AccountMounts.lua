@@ -18,9 +18,9 @@ local RETROACTIVE_DELAY_MS = 150  -- small delay after backfill
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_MOUNTS then return end
+
+local AUtils = AccountWideUtils
 
 local mountSpellIDs = {
     458, -- Brown Horse

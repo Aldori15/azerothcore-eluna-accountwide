@@ -13,9 +13,9 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 -- END CONFIG
 -- -------------------------------------------------------------------------------------------
 
-local AUtils = AccountWideUtils
-
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
+
+local AUtils = AccountWideUtils
 
 local function FetchCurrencyItemIDs()
     local itemIDs = {}
