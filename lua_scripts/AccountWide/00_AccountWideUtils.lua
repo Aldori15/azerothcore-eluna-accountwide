@@ -18,13 +18,20 @@ local botAccountCache = {}
 local primaryByAccount = {}
 
 -- ==============================================================================================
--- Core detection
+-- Playerbots module detection
 -- We don't need to run any of this if the server doesn't have playerbots.
 -- ==============================================================================================
-function AccountWideUtils.checkCoreVersion()
+function AccountWideUtils.checkPlayerbotsModule()
     if hasPlayerbots == nil then
-        local version = GetCoreVersion()
-        hasPlayerbots = version and version:lower():find("playerbot") ~= nil
+        -- Try reading the playerbots.conf file
+        local value = GetConfigValue("AiPlayerbot.Enabled")
+
+        if value == nil or value == "" then
+            -- playerbots.conf not found -> assume no Playerbots module
+            hasPlayerbots = false
+        else
+            hasPlayerbots = (tonumber(value) or 0) ~= 0
+        end
     end
 end
 
@@ -33,7 +40,7 @@ end
 -- Note: acore_playerbots.playerbots_account_type currently stores RNDbot accounts.
 -- ==============================================================================================
 function AccountWideUtils.isPlayerBotAccount(accountId)
-    AccountWideUtils.checkCoreVersion()
+    AccountWideUtils.checkPlayerbotsModule()
     if not hasPlayerbots then return false end
 
     local cached = botAccountCache[accountId]
@@ -61,7 +68,7 @@ local function getOnlineGuidsForAccount(accountId)
 end
 
 function AccountWideUtils.isAltBotCharacter(player)
-    AccountWideUtils.checkCoreVersion()
+    AccountWideUtils.checkPlayerbotsModule()
     if not hasPlayerbots then return false end
 
     local accountId = player:GetAccountId()
