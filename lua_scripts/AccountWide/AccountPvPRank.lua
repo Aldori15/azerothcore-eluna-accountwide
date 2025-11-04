@@ -19,20 +19,22 @@ local AUtils = AccountWideUtils
 local function InitializeAccountwidePvPRankTable()
     -- Refresh accountwide totals from current character sums
     CharDBExecute([[
-        INSERT INTO accountwide_pvp_rank (
+        INSERT INTO `acore_characters`.`accountwide_pvp_rank` (
             accountId, arenaPoints, totalHonorPoints, todayHonorPoints, yesterdayHonorPoints,
             totalKills, todayKills, yesterdayKills
         )
         SELECT
-            c.account,
+            c.account                     AS accountId,
             SUM(c.arenaPoints)            AS arenaPoints,
             SUM(c.totalHonorPoints)       AS totalHonorPoints,
-            SUM(c.todayHonorPoints)       AS todayHonorPoints,
-            SUM(c.yesterdayHonorPoints)   AS yesterdayHonorPoints,
+            MAX(c.todayHonorPoints)       AS todayHonorPoints,
+            MAX(c.yesterdayHonorPoints)   AS yesterdayHonorPoints,
             SUM(c.totalKills)             AS totalKills,
-            SUM(c.todayKills)             AS todayKills,
-            SUM(c.yesterdayKills)         AS yesterdayKills
-        FROM characters c
+            MAX(c.todayKills)             AS todayKills,
+            MAX(c.yesterdayKills)         AS yesterdayKills
+        FROM `acore_characters`.`characters` c
+        JOIN `acore_auth`.`account` a ON a.id = c.account
+        WHERE a.username NOT LIKE 'RNDBOT%'
         GROUP BY c.account
         ON DUPLICATE KEY UPDATE
             arenaPoints          = VALUES(arenaPoints),
@@ -46,15 +48,11 @@ local function InitializeAccountwidePvPRankTable()
 
     -- Mirror to every character on the account
     CharDBExecute([[
-        UPDATE characters c
-        JOIN accountwide_pvp_rank aw ON aw.accountId = c.account
-           SET c.arenaPoints          = aw.arenaPoints,
-               c.totalHonorPoints     = aw.totalHonorPoints,
-               c.todayHonorPoints     = aw.todayHonorPoints,
-               c.yesterdayHonorPoints = aw.yesterdayHonorPoints,
-               c.totalKills           = aw.totalKills,
-               c.todayKills           = aw.todayKills,
-               c.yesterdayKills       = aw.yesterdayKills
+        UPDATE `acore_characters`.`characters` c
+        JOIN `acore_characters`.`accountwide_pvp_rank` aw ON aw.accountId = c.account
+           SET c.arenaPoints      = aw.arenaPoints,
+               c.totalHonorPoints = aw.totalHonorPoints,
+               c.totalKills       = aw.totalKills
     ]])
 end
 
