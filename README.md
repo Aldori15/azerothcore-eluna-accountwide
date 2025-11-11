@@ -1,7 +1,7 @@
 # ![logo](https://raw.githubusercontent.com/azerothcore/azerothcore.github.io/master/images/logo-github.png) AzerothCore
 
-# Accountwide Systems Using Eluna
-Here is my implementation approach to all things Accountwide.  Eluna needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.  
+# Accountwide Systems Using ALE
+Here is my implementation approach to all things Accountwide.  ALE needs to be set up on your server for these scripts to work and each system has a module-like configuration where you can choose to enable/disable independently.  
 
 It is HIGHLY recommended to install these on a fresh server.
 
@@ -41,7 +41,7 @@ Neutral factions will be shared to both.
 
 ### Taxi Paths / Flight Paths
 IMPORTANT!!!!
-This script will require my fork of `mod-eluna` found [here](https://github.com/Aldori15/mod-eluna). I had to add new C++ methods to Eluna to expose the taxi node data.  I submitted a pull request to Acore's main Eluna repo, so you could alternatively use that with at least [this commit](https://github.com/azerothcore/mod-eluna/commit/bcfe631307cda63514492366f659549ecf050854).
+This script will require my fork of `mod-ale` found [here](https://github.com/Aldori15/mod-ale). I had to add new C++ methods to ALE to expose the taxi node data.  I submitted a pull request to Acore's main ALE repo, so you could alternatively use that with at least [this commit](https://github.com/azerothcore/mod-ale/commit/bcfe631307cda63514492366f659549ecf050854).
 
 This script will synchronize learned flight paths across all characters on your account that are within the same faction.
     	
@@ -62,4 +62,5 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 > [!WARNING]
 > # If you use AccountReputation:
 > - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is HIGHLY recommended to install this on a fresh server.
+
 
