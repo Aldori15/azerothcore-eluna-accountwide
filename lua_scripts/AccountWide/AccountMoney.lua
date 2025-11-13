@@ -7,16 +7,13 @@
 -- Master on/off for this script
 local ENABLE_ACCOUNTWIDE_MONEY = false
 
--- Optional login announcement
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Money|r lua script."
 
--- =============================================
--- Realtime tick (periodic sync while online)
--- =============================================
+-- ===============================
+-- Realtime tick (periodic sync)
+-- ===============================
 -- Global switch for periodic “tick” updates.
--- Primary (or solo) will always tick if this is true.
--- Altbots will only tick if ENABLE_ALTBOT_REALTIME_TICK is also true.
 local ENABLE_REALTIME_TICK = false
 
 -- Only applies when ENABLE_REALTIME_TICK = true.
@@ -37,9 +34,40 @@ local AUtils = AccountWideUtils
 local lastSyncedMoney = {}
 local justPushedAt = {}
 
+local GOLD_SOFT_CAP_COPPER  = 210000 * 10000         -- 210k: where we start diverting to virtual bank
+local GOLD_WARNING_THRESHOLD = GOLD_SOFT_CAP_COPPER  -- when to show warning
+
+local function ToLuaNumber(value)
+    if type(value) == "userdata" then
+        return tonumber(tostring(value))
+    end
+
+    return tonumber(value) or 0
+end
+
+local function MaybeWarnNearGoldCap(player)
+    local money = player:GetCoinage() or 0
+    if money >= GOLD_WARNING_THRESHOLD then
+        local gold = math.floor(money / 10000)
+        local silver = math.floor(money / 100) % 100
+        local copper = money % 100
+
+        player:SendBroadcastMessage(" ")
+        player:SendBroadcastMessage(string.format(
+            "|cFF00B0E8AccountWide Money Notice:|r You are at the gold soft cap of %dg. " ..
+            "Any gold earned above this amount will automatically be stored in your account bank instead.",
+            math.floor(GOLD_SOFT_CAP_COPPER / 10000)
+        ))
+    end
+end
+
 local function GetTotalAccountMoney(accountId)
     local query = CharDBQuery(string.format("SELECT money FROM accountwide_money WHERE accountId = %d", accountId))
-    return query and query:GetUInt32(0) or 0
+    if query then
+        return ToLuaNumber(query:GetUInt64(0))
+    end
+
+    return 0
 end
 
 local function AddDeltaToAccountMoney(accountId, delta)
@@ -54,36 +82,72 @@ local function AddDeltaToAccountMoney(accountId, delta)
     CharDBExecute(sql)
 end
 
+local function ClampOverflowToAccount(player, accountId)
+    local current = player:GetCoinage() or 0
+    if current > GOLD_SOFT_CAP_COPPER then
+        local overflow = current - GOLD_SOFT_CAP_COPPER
+
+        -- Put the overflow into the virtual bank
+        AddDeltaToAccountMoney(accountId, overflow)
+        player:ModifyMoney(-overflow)
+
+        return GOLD_SOFT_CAP_COPPER, overflow
+    end
+
+    return current, 0
+end
+
 local function AccountMoneyRowExists(accountId)
     return CharDBQuery(string.format("SELECT 1 FROM accountwide_money WHERE accountId = %d LIMIT 1", accountId)) ~= nil
 end
 
--- One-time seeding: sum all character money into the account row.
 local function RetroactivelySeedAccountMoneyIfMissing(accountId)
+    if AccountMoneyRowExists(accountId) then return false end
+
     local query = CharDBQuery(string.format("SELECT COALESCE(SUM(money),0) FROM characters WHERE account = %d", accountId))
-    local totalAccountMoney = query and query:GetUInt32(0) or 0
+    local totalAccountMoney = query and ToLuaNumber(query:GetUInt64(0)) or 0
+
     CharDBExecute(string.format([[
         INSERT INTO accountwide_money (accountId, money)
         VALUES (%d, %d)
-        ON DUPLICATE KEY UPDATE money = VALUES(money)
     ]], accountId, totalAccountMoney))
+
+    return true -- we seeded
 end
 
---  If character > account, push up the difference.
---  If account > character and this player is allowed to down sync (primary), top up the character.
---  If not allowed to down sync (Altbot), DO NOT change account or char on login. We will only rely on delta changes
 local function SyncCharacterMoneyOnLogin(player, accountId)
     local accountTotal = GetTotalAccountMoney(accountId)
     local currentMoney = player:GetCoinage() or 0
 
+    -- Enforce the soft cap and push any overflow to the bank
+    if currentMoney > GOLD_SOFT_CAP_COPPER then
+        local overflow = currentMoney - GOLD_SOFT_CAP_COPPER
+
+        AddDeltaToAccountMoney(accountId, overflow)
+        player:ModifyMoney(-overflow)
+
+        currentMoney = GOLD_SOFT_CAP_COPPER
+        accountTotal = accountTotal + overflow
+    end
+
     if AUtils.shouldDoDownsync(player) then
         if currentMoney > accountTotal then
+            -- Character somehow has more than the account bank: trim down to match bank
             player:ModifyMoney(-(currentMoney - accountTotal))
-            return
         elseif accountTotal > currentMoney then
-            player:ModifyMoney(accountTotal - currentMoney)
-            return
+            -- Account bank has more than the character: top up, but never exceed soft cap
+            local space = GOLD_SOFT_CAP_COPPER - currentMoney
+            if space > 0 then
+                local desiredAdd = accountTotal - currentMoney
+                local toAdd = math.min(desiredAdd, space)
+                if toAdd > 0 then
+                    player:ModifyMoney(toAdd)
+                    currentMoney = currentMoney + toAdd
+                end
+            end
         end
+
+        MaybeWarnNearGoldCap(player)
         return
     else
         -- Altbot: do nothing at login. We will rely on delta pushes only
@@ -100,13 +164,20 @@ local function TickRealtimeSync(player)
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local current = player:GetCoinage() or 0
+    -- Never let realtime tick leave a character over the soft cap
+    if current > GOLD_SOFT_CAP_COPPER then
+        local overflow = current - GOLD_SOFT_CAP_COPPER
+        AddDeltaToAccountMoney(accountId, overflow)
+        player:ModifyMoney(-overflow)
+        current = GOLD_SOFT_CAP_COPPER
+    end
+
     local baseline = lastSyncedMoney[guid]
     if baseline == nil then
         lastSyncedMoney[guid] = current -- first tick, establish baseline
         return
     end
 
-    -- push delta (character -> account)
     local delta = current - baseline
     local pushed = false
     if delta ~= 0 then
@@ -120,7 +191,6 @@ local function TickRealtimeSync(player)
     -- mirror (account -> character) only if we did NOT push this tick
     if not (AUtils.shouldDoDownsync and AUtils.shouldDoDownsync(player)) then return end
 
-    -- If we just pushed this tick, skip mirror to avoid “bounce”
     local now = GetMSTime and GetMSTime() or (os.time() * 1000)
     local jp  = justPushedAt[guid] or 0
     if pushed or (now - jp) < 1 then
@@ -130,13 +200,21 @@ local function TickRealtimeSync(player)
 
     local accountTotal = GetTotalAccountMoney(accountId)
     if accountTotal > baseline then
+        -- Account has more than the character: top up, but never exceed soft cap
         local add = accountTotal - baseline
         if add > 0 then
-            player:ModifyMoney(add)
-            baseline = baseline + add
-            lastSyncedMoney[guid] = baseline
+            local space = GOLD_SOFT_CAP_COPPER - baseline
+            if space > 0 then
+                local toAdd = math.min(add, space)
+                if toAdd > 0 then
+                    player:ModifyMoney(toAdd)
+                    baseline = baseline + toAdd
+                    lastSyncedMoney[guid] = baseline
+                end
+            end
         end
     elseif baseline > accountTotal then
+        -- Character has more than the account: trim down to match
         local sub = baseline - accountTotal
         if sub > 0 then
             player:ModifyMoney(-sub)
@@ -160,26 +238,28 @@ local function AccountMoney(event, player)
     -- Always skip RNDbots; Altbots still push deltas but avoid down-syncs via shouldDoDownsync
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
-	-- Skip if player has Unfair Taxes Key (Taxation Without Representation Mode)
+	-- Unfair Taxes Key (Taxation Without Representation Mode)
     if player:HasItem(800086) then return end
 
     if event == 3 then
-        if not AccountMoneyRowExists(accountId) then
-            RetroactivelySeedAccountMoneyIfMissing(accountId)
-        end
+        local seeded = RetroactivelySeedAccountMoneyIfMissing(accountId)
 
         -- Delay to let account seeding settle, then do safe login sync and start the realtime tick
         player:RegisterEvent(function(_, _, _, player)
             AUtils.markPrimaryOnLogin(player)
+
+            if seeded then
+                -- If we seeded a new account row, sync again so no relog is needed
+                SyncCharacterMoneyOnLogin(player, accountId)
+            end
+
             SyncCharacterMoneyOnLogin(player, accountId)
             lastSyncedMoney[player:GetGUIDLow()] = player:GetCoinage() or 0
 
             if ENABLE_REALTIME_TICK then
                 if AUtils.shouldDoDownsync(player) then
-                    -- Primary (or solo)
                     StartRealtimeTimer(player)
                 elseif ENABLE_ALTBOT_REALTIME_TICK then
-                    -- Altbots: only if explicitly enabled
                     StartRealtimeTimer(player)
                 end
             end
@@ -192,6 +272,14 @@ local function AccountMoney(event, player)
         local guid = player:GetGUIDLow()
         local currentMoney = player:GetCoinage() or 0
 
+        -- Enforce the soft cap and push any overflow to the bank
+        if currentMoney > GOLD_SOFT_CAP_COPPER then
+            local overflow = currentMoney - GOLD_SOFT_CAP_COPPER
+            AddDeltaToAccountMoney(accountId, overflow)
+            player:ModifyMoney(-overflow)
+            currentMoney = GOLD_SOFT_CAP_COPPER
+        end
+
         local baseline = lastSyncedMoney[guid]
         if baseline == nil then
             lastSyncedMoney[guid] = currentMoney
@@ -203,6 +291,8 @@ local function AccountMoney(event, player)
             AddDeltaToAccountMoney(accountId, delta)
             lastSyncedMoney[guid] = currentMoney
         end
+
+        MaybeWarnNearGoldCap(player)
     end
 end
 
@@ -210,9 +300,15 @@ local function CleanUpMoneyOnLogout(event, player)
     local guid = player:GetGUIDLow()
     local accountId = player:GetAccountId()
 
-    -- FINAL FLUSH: capture any last delta before the player object goes away
     local current = player:GetCoinage() or 0
     local baseline = lastSyncedMoney[guid]
+
+    if current > GOLD_SOFT_CAP_COPPER then
+        local overflow = current - GOLD_SOFT_CAP_COPPER
+        AddDeltaToAccountMoney(accountId, overflow)
+        player:ModifyMoney(-overflow)
+        current = GOLD_SOFT_CAP_COPPER
+    end
 
     if baseline == nil then
         baseline = current
@@ -228,6 +324,39 @@ local function CleanUpMoneyOnLogout(event, player)
         AUtils.clearPrimaryOnLogout(player)
     end, 500, 1)
 end
+
+local function FormatMoney(copper)
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    local copper = copper % 100
+    return string.format("%dg %ds %dc", gold, silver, copper)
+end
+
+local function HandleAccountBalance(player, command)
+    local accountId = player:GetAccountId()
+
+    -- Skip RNDbots completely
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return false end
+
+    local accountTotal = GetTotalAccountMoney(accountId) or 0
+    local charMoney = player:GetCoinage() or 0
+
+    player:SendBroadcastMessage(" ")
+    player:SendBroadcastMessage("|cFF00B0E8AccountWide Money|r")
+    player:SendBroadcastMessage("   Account Bank:  |cffffd000" .. FormatMoney(accountTotal) .. "|r")
+    player:SendBroadcastMessage("   Character:         |cffffd000" .. FormatMoney(charMoney) .. "|r")
+
+    return false
+end
+
+RegisterPlayerEvent(42, function(_, player, msg)
+    msg = msg:lower()
+    if msg == "accountbalance" or msg == "accountmoney" or msg == "accountbank" then
+        return HandleAccountBalance(player, msg)
+    end
+
+    return true
+end)
 
 RegisterPlayerEvent(3, AccountMoney) -- PLAYER_EVENT_ON_LOGIN
 RegisterPlayerEvent(4, CleanUpMoneyOnLogout) -- PLAYER_EVENT_ON_LOGOUT
