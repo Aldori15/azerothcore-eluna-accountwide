@@ -22,16 +22,27 @@ local primaryByAccount = {}
 -- We don't need to run any of this if the server doesn't have playerbots.
 -- ==============================================================================================
 function AccountWideUtils.checkPlayerbotsModule()
-    if hasPlayerbots == nil then
+    if hasPlayerbots ~= nil then return end
+
+    if type(GetConfigValue) == "function" then
         -- Try reading the playerbots.conf file
         local value = GetConfigValue("AiPlayerbot.Enabled")
 
-        if value == nil or value == "" then
-            -- playerbots.conf not found -> assume no Playerbots module
-            hasPlayerbots = false
-        else
+        if value ~= nil and value ~= "" then
             hasPlayerbots = (tonumber(value) or 0) ~= 0
+            return
         end
+
+        -- playerbots.conf not found -> assume no Playerbots module
+        hasPlayerbots = false
+        return
+    end
+
+    -- Fallback method for older Eluna/ALE builds that don't have GetConfigValue
+    if type(GetCoreVersion) == "function" then
+        local version = GetCoreVersion()
+        hasPlayerbots = version and version:lower():find("playerbot") ~= nil
+        return
     end
 end
 
