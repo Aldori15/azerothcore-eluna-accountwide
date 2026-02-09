@@ -14,7 +14,7 @@ local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
 local DEBUG_MODE = false  -- Toggle debug messages
-local BATCH_SIZE = 500    -- Safety cap for SQL VALUES batching
+local BATCH_SIZE = 500
 
 -- ------------------------------------------------------------------------------------------------
 -- END CONFIG
@@ -24,14 +24,33 @@ if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
 local AUtils = AccountWideUtils
 
-local function toSet(list)
-    local set = {}
-    for i = 1, #list do set[list[i]] = true end
-    return set
-end
+local accountTaxiCache = { alliance = {}, horde = {} }
 
 local function factionTableName(team) -- 0 = Alliance, 1 = Horde
     return (team == 0) and "accountwide_taxi_alliance" or "accountwide_taxi_horde"
+end
+
+local function getFactionKey(team) -- 0 = Alliance, 1 = Horde
+    return (team == 0) and "alliance" or "horde"
+end
+
+local function getOrLoadAccountSet(accountId, team)
+    local key = getFactionKey(team)
+    if accountTaxiCache[key][accountId] then
+        return accountTaxiCache[key][accountId]
+    end
+
+    local tableName = factionTableName(team)
+    local set = {}
+    local query = CharDBQuery(("SELECT nodeId FROM `%s` WHERE accountId = %d"):format(tableName, accountId))
+    if query then
+        repeat
+            set[query:GetUInt32(0)] = true
+        until not query:NextRow()
+    end
+
+    accountTaxiCache[key][accountId] = set
+    return set
 end
 
 local function batchInsertIgnore(tableName, accountId, nodeIds)
@@ -54,29 +73,27 @@ local function batchInsertIgnore(tableName, accountId, nodeIds)
 end
 
 local function OnPlayerLogin(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    local tableName = factionTableName(player:GetTeam())
-    local nodes = CharDBQuery(("SELECT nodeId FROM `%s` WHERE accountId = %d"):format(tableName, accountId))
-    if not nodes then return end
+    local accountId = player:GetAccountId()
+    local team = player:GetTeam()
 
-    local knownNodes = player:GetKnownTaxiNodes() or {}
-    local playerSet = toSet(knownNodes)
+    local accountSet = getOrLoadAccountSet(accountId, team)
 
-    -- Collect missing nodes to grant this character
     local toGrant = {}
-    repeat
-        local nodeId = nodes:GetUInt32(0)
-        if not playerSet[nodeId] then
+    for nodeId in pairs(accountSet) do
+        if not player:HasKnownTaxiNode(nodeId) then
             toGrant[#toGrant + 1] = nodeId
+            if DEBUG_MODE then
+                print(string.format("[Taxi]: Player %s (guid=%d) missing nodeId=%d, adding to grant list", player:GetName(), player:GetGUIDLow(), nodeId))
+            end
         end
-    until not nodes:NextRow()
+    end
 
     if #toGrant > 0 then
         if DEBUG_MODE then
@@ -87,18 +104,34 @@ local function OnPlayerLogin(event, player)
 end
 
 local function OnPlayerLogout(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
-    local tableName = factionTableName(player:GetTeam())
+    local accountId = player:GetAccountId()
+    local team = player:GetTeam()
+
+    local accountSet = getOrLoadAccountSet(accountId, team)
+
     local knownNodes = player:GetKnownTaxiNodes() or {}
+    if #knownNodes == 0 then return end
 
-    if #knownNodes > 0 then
-        if DEBUG_MODE then
-            print(string.format("[Taxi]: Syncing %d nodes for accountId=%d (%s)", #knownNodes, accountId, tableName))
+    local toInsert = {}
+    for i = 1, #knownNodes do
+        local nodeId = knownNodes[i]
+        if nodeId and nodeId > 0 and not accountSet[nodeId] then
+            accountSet[nodeId] = true
+            toInsert[#toInsert + 1] = nodeId
         end
-        batchInsertIgnore(tableName, accountId, knownNodes)
+    end
+
+    if #toInsert > 0 then
+        local tableName = factionTableName(team)
+
+        if DEBUG_MODE then
+            print(string.format("[Taxi]: Inserting %d new nodes for accountId=%d (%s)", #toInsert, accountId, tableName))
+        end
+
+        batchInsertIgnore(tableName, accountId, toInsert)
     end
 end
 

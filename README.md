@@ -32,6 +32,8 @@ All of the pets are defined in the "petSpellIDs" table on Line 18.  Feel free to
 ### PvP Rank/Stats
 This script will sync your PvP Rank/Stats across all of your characters: Honorable Kills, Honor Points, Arena Points. This data will be stored in a new `accountwide_pvp_rank` table.
 
+You will see `RUN_INIT_SEED_ON_STARTUP = true` in the config section of the script.  It is set to `true` by default on purpose.  After you successfully launch the server for the first time with this script, you can then set this value to `false`.  This needs to be `true` only for the **first** run to retroactively seed your existing PvP stats to the accountwide table.  After that you don't need to seed anymore.
+
 ### Reputation
 Not sure if you are just like me and get tired of farming reputations on multiple characters, but this script allows all of the reputation progress to be shared across all of your characters.
 

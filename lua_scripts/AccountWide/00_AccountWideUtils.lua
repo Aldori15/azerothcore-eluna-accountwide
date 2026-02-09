@@ -17,6 +17,9 @@ local hasPlayerbots = nil
 local botAccountCache = {}
 local primaryByAccount = {}
 
+local onlineByAccount = {}
+local onlineCount = {}
+
 -- ==============================================================================================
 -- Playerbots module detection
 -- We don't need to run any of this if the server doesn't have playerbots.
@@ -48,7 +51,6 @@ end
 
 -- ==============================================================================================
 -- RNDbot detection
--- Note: acore_playerbots.playerbots_account_type currently stores RNDbot accounts.
 -- ==============================================================================================
 function AccountWideUtils.isPlayerBotAccount(accountId)
     AccountWideUtils.checkPlayerbotsModule()
@@ -68,13 +70,14 @@ end
 -- "Altbot" = another character on the same account online at the same time.
 -- ==============================================================================================
 local function getOnlineGuidsForAccount(accountId)
-    local query = CharDBQuery(string.format("SELECT guid FROM characters WHERE account = %d AND online = 1 ORDER BY guid ASC", accountId))
-    if not query then return {} end
+    local set = onlineByAccount[accountId]
+    if not set then return {} end
 
     local guids = {}
-    repeat
-        table.insert(guids, query:GetUInt32(0))
-    until not query:NextRow()
+    for guid,_ in pairs(set) do
+        guids[#guids + 1] = guid
+    end
+    table.sort(guids)
     return guids
 end
 
@@ -111,6 +114,51 @@ function AccountWideUtils.clearPrimaryOnLogout(player)
     end
 end
 
+function AccountWideUtils.noteLogin(player)
+    local accountId = player:GetAccountId()
+    local guid = player:GetGUIDLow()
+
+    local set = onlineByAccount[accountId]
+    if not set then
+        set = {}
+        onlineByAccount[accountId] = set
+        onlineCount[accountId] = 0
+    end
+
+    if not set[guid] then
+        set[guid] = true
+        onlineCount[accountId] = (onlineCount[accountId] or 0) + 1
+    end
+
+    if not primaryByAccount[accountId] then
+        primaryByAccount[accountId] = guid
+    end
+end
+
+function AccountWideUtils.noteLogout(accountId, guid)
+    local set = onlineByAccount[accountId]
+    if not set or not set[guid] then return end
+
+    set[guid] = nil
+    onlineCount[accountId] = (onlineCount[accountId] or 1) - 1
+
+    if onlineCount[accountId] <= 0 then
+        onlineByAccount[accountId] = nil
+        onlineCount[accountId] = nil
+        primaryByAccount[accountId] = nil
+        return
+    end
+
+    -- If the anchor logged out, pick a new anchor deterministically (lowest guid)
+    if primaryByAccount[accountId] == guid then
+        local lowest
+        for g,_ in pairs(set) do
+            if not lowest or g < lowest then lowest = g end
+        end
+        primaryByAccount[accountId] = lowest
+    end
+end
+
 -- ==============================================================================================
 -- Gates used by Accountwide scripts
 -- ==============================================================================================
@@ -127,13 +175,21 @@ function AccountWideUtils.shouldSkipAll(player)
 end
 
 function AccountWideUtils.shouldDoDownsync(player)
-    -- Solo online for this account? Always allow down-sync
     local accountId = player:GetAccountId()
-    local guids = getOnlineGuidsForAccount(accountId)
-    if #guids <= 1 then return true end
+    local count = onlineCount[accountId] or 0
+
+    -- Solo online -> always allow
+    if count <= 1 then return true end
 
     -- Otherwise, only the anchored primary can down-sync
-    if EXCLUDE_ALTBOTS and AccountWideUtils.isAltBotCharacter(player) then return false end
+    if EXCLUDE_ALTBOTS then
+        local anchor = primaryByAccount[accountId]
+        if not anchor then
+            anchor = player:GetGUIDLow()
+            primaryByAccount[accountId] = anchor
+        end
+        return player:GetGUIDLow() == anchor
+    end
 
     return true
 end

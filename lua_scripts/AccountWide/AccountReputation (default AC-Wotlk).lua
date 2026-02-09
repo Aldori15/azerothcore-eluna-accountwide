@@ -9,9 +9,20 @@ local ENABLE_ACCOUNTWIDE_REPUTATION = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Reputation |rlua script."
 
--- -- ------------------------------------------------------------------------------------------------
+-- PLEASE READ:
+-- Retroactive seeding settings (for existing accounts that already have characters with reputation progress):
+-- If you are using this script on a brand new server, you can disable with no impact.
+-- Otherwise, it's recommended to keep this enabled to retroactively seed existing accounts on their first login.
+-- Since the retroactive rep values won't show up on the client until the player logs back in, we will force a logout
+-- to ensure the seeded values are applied immediately.
+local RETROACTIVE_SEED_ON_LOGIN = true
+local SEED_ANNOUNCE_TO_PLAYER = true
+local SEED_FORCE_LOGOUT = true
+local SEED_LOGOUT_DELAY_SECONDS = 10
+
+-- ------------------------------------------------------------------------------------------------
 -- END CONFIG
--- -- ------------------------------------------------------------------------------------------------
+-- ------------------------------------------------------------------------------------------------
 
 if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
 
@@ -83,56 +94,331 @@ local function toCSV(intList)
     return table.concat(out, ",")
 end
 
--- Batch upsert many rows in one statement
-local function execBatchUpsertReputation(rows)
+-- Split large upserts into chunks to avoid overly long SQL statements
+local function execBatchUpsertReputationChunked(rows, chunkSize)
     if #rows == 0 then return end
-    local values = {}
-    for i = 1, #rows do
-        local row = rows[i]
-        values[#values+1] = string.format("(%d,%d,%d)", row.guid, row.factionId, row.standing)
+    chunkSize = chunkSize or 500
+
+    local i = 1
+    while i <= #rows do
+        local j = math.min(i + chunkSize - 1, #rows)
+        local values = {}
+
+        for k = i, j do
+            local row = rows[k]
+            values[#values + 1] = string.format("(%d,%d,%d)", row.guid, row.factionId, row.standing)
+        end
+
+        CharDBExecute([[
+            INSERT INTO character_reputation (guid, faction, standing)
+            VALUES ]] .. table.concat(values, ",") .. [[
+            ON DUPLICATE KEY UPDATE standing = VALUES(standing)
+        ]])
+
+        i = j + 1
     end
-    CharDBExecute([[
-        INSERT INTO character_reputation (guid, faction, standing)
-        VALUES ]] .. table.concat(values, ",") .. [[
-        ON DUPLICATE KEY UPDATE standing = VALUES(standing)
-    ]])
+end
+
+local function HasAccountBeenSeeded(accountId)
+    local seeded = CharDBQuery(string.format("SELECT seeded FROM accountwide_reputation_seed WHERE accountId = %d", accountId))
+    if not seeded then return false end
+    return seeded:GetUInt8(0) == 1
+end
+
+local function MarkAccountSeeded(accountId)
+    CharDBExecute(string.format([[
+        INSERT INTO accountwide_reputation_seed (accountId, seeded)
+        VALUES (%d, 1)
+        ON DUPLICATE KEY UPDATE seeded = 1, seeded_at = CURRENT_TIMESTAMP
+    ]], accountId))
+end
+
+local PENDING_SEED_ROWS_BY_ACCOUNT = {}
+local PENDING_SEED_IN_PROGRESS = {}
+local SEED_COUNTDOWN_EVENTID_BY_GUID = {}
+
+local ACCOUNT_CHARS_CACHE = {}
+local SAVER_FACTIONS_CACHE = {}
+
+local function InvalidateAccountCharsCache(accountId)
+    ACCOUNT_CHARS_CACHE[accountId] = nil
+end
+
+local function GetAccountCharsCached(accountId)
+    local now = os.time()
+    local cached = ACCOUNT_CHARS_CACHE[accountId]
+    if cached and (now - cached.ts) <= 30 then
+        return cached.chars
+    end
+
+    local chars = {}
+    local query = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
+    if not query then
+        ACCOUNT_CHARS_CACHE[accountId] = { ts = now, chars = chars }
+        return chars
+    end
+
+    repeat
+        chars[#chars + 1] = {
+            guid = query:GetUInt32(0),
+            race = query:GetUInt8(1),
+            class = query:GetUInt8(2),
+        }
+    until not query:NextRow()
+
+    ACCOUNT_CHARS_CACHE[accountId] = { ts = now, chars = chars }
+    return chars
+end
+
+local function GetSaverFactionIdsCached(guid, savingIsAlliance, savingIsHorde)
+    local now = os.time()
+    local cached = SAVER_FACTIONS_CACHE[guid]
+    if cached and (now - cached.ts) <= 60 then
+        return cached.ids, cached.csv
+    end
+
+    local saverFactionIds = {}
+    local saverReps = CharDBQuery(string.format("SELECT faction FROM character_reputation WHERE guid = %d", guid))
+    if not saverReps then
+        return nil, nil
+    end
+
+    repeat
+        local factionId = saverReps:GetUInt32(0)
+
+        local isAllianceFaction = allianceFactions[factionId] == true
+        local isHordeFaction = hordeFactions[factionId] == true
+        local isNeutralFaction = (not isAllianceFaction and not isHordeFaction)
+
+        if isNeutralFaction
+            or (savingIsAlliance and isAllianceFaction)
+            or (savingIsHorde and isHordeFaction)
+        then
+            saverFactionIds[#saverFactionIds + 1] = factionId
+        end
+    until not saverReps:NextRow()
+
+    if #saverFactionIds == 0 then
+        return nil, nil
+    end
+
+    local csv = toCSV(saverFactionIds)
+    SAVER_FACTIONS_CACHE[guid] = { ts = now, ids = saverFactionIds, csv = csv }
+    return saverFactionIds, csv
+end
+
+local function ApplyPendingSeedForAccount(accountId)
+    local rows = PENDING_SEED_ROWS_BY_ACCOUNT[accountId]
+    if not rows or #rows == 0 then
+        PENDING_SEED_ROWS_BY_ACCOUNT[accountId] = nil
+        PENDING_SEED_IN_PROGRESS[accountId] = nil
+        return
+    end
+
+    execBatchUpsertReputationChunked(rows, 500)
+    MarkAccountSeeded(accountId)
+
+    PENDING_SEED_ROWS_BY_ACCOUNT[accountId] = nil
+    PENDING_SEED_IN_PROGRESS[accountId] = nil
+end
+
+local function StartSeedLogoutCountdown(player, accountId)
+    if not SEED_FORCE_LOGOUT then
+        ApplyPendingSeedForAccount(accountId)
+        return
+    end
+
+    local seconds = tonumber(SEED_LOGOUT_DELAY_SECONDS) or 5
+    if seconds < 1 then seconds = 1 end
+
+    local function doLogout(eventId, delay, calls, plr)
+        if not plr then return end
+
+        local guid = plr:GetGUIDLow()
+        local event = SEED_COUNTDOWN_EVENTID_BY_GUID[guid]
+        if event then
+            plr:RemoveEventById(event)
+            SEED_COUNTDOWN_EVENTID_BY_GUID[guid] = nil
+        end
+
+        plr:SendBroadcastMessage("|cFF00B0E8[AccountWide]|r Applying reputation seed now. Logging out...")
+
+        -- Delay to apply seed AFTER player is disconnected (so core save can't overwrite it).
+        CreateLuaEvent(function()
+            ApplyPendingSeedForAccount(accountId)
+        end, 2000, 1)
+
+        -- I would like to use LogoutPlayer here but currently it crashes the worldserver. Once this is fixed in ALE, i'll switch to that instead:
+        -- https://github.com/azerothcore/mod-ale/issues/359
+        -- plr:LogoutPlayer(false)
+        plr:KickPlayer()
+    end
+
+    local function tick(eventId, delay, calls, plr)
+        if not plr then return end
+
+        local remaining = calls - 1
+        if remaining <= 0 then
+            plr:RegisterEvent(doLogout, 1, 1)
+            return
+        end
+
+        plr:SendBroadcastMessage(string.format(
+            "|cFF00B0E8[AccountWide]|r Reputation seeded. You will be logged out in %d second%s to apply changes.",
+            remaining, (remaining == 1 and "" or "s")
+        ))
+    end
+
+    local evtId = player:RegisterEvent(tick, 1000, seconds + 1)
+    SEED_COUNTDOWN_EVENTID_BY_GUID[player:GetGUIDLow()] = evtId
+end
+
+local function IsAllianceRace(race) return allianceRaces[race] == true end
+local function IsHordeRace(race) return hordeRaces[race] == true end
+
+local function IsAllianceFaction(factionId) return allianceFactions[factionId] == true end
+local function IsHordeFaction(factionId) return hordeFactions[factionId] == true end
+local function IsNeutralFaction(factionId) return (not IsAllianceFaction(factionId)) and (not IsHordeFaction(factionId)) end
+
+-- Retroactive seeding:
+local function SeedAccountReputationIfNeeded(player)
+    if not RETROACTIVE_SEED_ON_LOGIN then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+
+    local accountId = player:GetAccountId()
+    if HasAccountBeenSeeded(accountId) then return end
+
+    local accountChars = GetAccountCharsCached(accountId)
+    if not accountChars or #accountChars == 0 then
+        MarkAccountSeeded(accountId)
+        return
+    end
+
+    local maxAlliance = {}
+    local maxHorde = {}
+    local maxNeutral = {}
+
+    do
+        local repQuery = CharDBQuery(string.format([[
+            SELECT cr.faction, cr.standing, ch.race
+            FROM character_reputation cr
+            JOIN characters ch ON ch.guid = cr.guid
+            WHERE ch.account = %d
+            AND cr.standing <> 0
+        ]], accountId))
+
+        if not repQuery then
+            -- mark seeded so we don't recheck every login
+            MarkAccountSeeded(accountId)
+            return
+        end
+
+        repeat
+            local factionId = repQuery:GetUInt32(0)
+            local delta = ClampReputation(repQuery:GetInt32(1))
+            local holderRace = repQuery:GetUInt8(2)
+
+            if IsNeutralFaction(factionId) then
+                local cur = maxNeutral[factionId]
+                if cur == nil or delta > cur then
+                    maxNeutral[factionId] = delta
+                end
+
+            elseif IsAllianceFaction(factionId) and IsAllianceRace(holderRace) then
+                local cur = maxAlliance[factionId]
+                if cur == nil or delta > cur then
+                    maxAlliance[factionId] = delta
+                end
+
+            elseif IsHordeFaction(factionId) and IsHordeRace(holderRace) then
+                local cur = maxHorde[factionId]
+                if cur == nil or delta > cur then
+                    maxHorde[factionId] = delta
+                end
+            end
+
+        until not repQuery:NextRow()
+    end
+
+    local hasAny = false
+    for _ in pairs(maxAlliance) do hasAny = true break end
+    if not hasAny then for _ in pairs(maxHorde) do hasAny = true break end end
+    if not hasAny then for _ in pairs(maxNeutral) do hasAny = true break end end
+
+    if not hasAny then
+        -- If there is nothing to seed, mark seeded so we don't recheck every login
+        MarkAccountSeeded(accountId)
+        return
+    end
+
+    local rowsToWrite = {}
+
+    for i = 1, #accountChars do
+        local char = accountChars[i]
+        local isAlliance = IsAllianceRace(char.race)
+        local isHorde = IsHordeRace(char.race)
+
+        -- neutrals -> everyone
+        for factionId, delta in pairs(maxNeutral) do
+            rowsToWrite[#rowsToWrite + 1] = {
+                guid = char.guid,
+                factionId = factionId,
+                standing = ClampReputation(delta),
+            }
+        end
+
+        if isAlliance then
+            for factionId, delta in pairs(maxAlliance) do
+                rowsToWrite[#rowsToWrite + 1] = {
+                    guid = char.guid,
+                    factionId = factionId,
+                    standing = ClampReputation(delta),
+                }
+            end
+        elseif isHorde then
+            for factionId, delta in pairs(maxHorde) do
+                rowsToWrite[#rowsToWrite + 1] = {
+                    guid = char.guid,
+                    factionId = factionId,
+                    standing = ClampReputation(delta),
+                }
+            end
+        end
+    end
+
+    PENDING_SEED_ROWS_BY_ACCOUNT[accountId] = rowsToWrite
+    PENDING_SEED_IN_PROGRESS[accountId] = true
+
+    if SEED_ANNOUNCE_TO_PLAYER then
+        if SEED_FORCE_LOGOUT then
+            player:SendBroadcastMessage("|cFF00B0E8[AccountWide]|r Reputation seeded for your account. You will be logged out soon to apply changes.")
+        else
+            player:SendBroadcastMessage("|cFF00B0E8[AccountWide]|r Reputation seeded for your account. Relog to apply changes.")
+        end
+    end
+
+    StartSeedLogoutCountdown(player, accountId)
 end
 
 local function SetReputationOnSave(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+
+    local accountId = player:GetAccountId()
+    if PENDING_SEED_IN_PROGRESS[accountId] then return end
 
     local savingGuid = player:GetGUIDLow()
     local savingRace = player:GetRace()
     local savingClass = player:GetClass()
 
-    local accountChars = {}
-    do
-        local charQuery = CharDBQuery(string.format("SELECT guid, race, class FROM characters WHERE account = %d", accountId))
-        if not charQuery then return end
-        repeat
-            accountChars[#accountChars+1] = {
-                guid = charQuery:GetUInt32(0),
-                race = charQuery:GetUInt8(1),
-                class = charQuery:GetUInt8(2),
-            }
-        until not charQuery:NextRow()
-    end
+    local accountChars = GetAccountCharsCached(accountId)
+    if not accountChars or #accountChars == 0 then return end
 
-    if #accountChars == 0 then return end
+    local savingIsAlliance = allianceRaces[savingRace] == true
+    local savingIsHorde = hordeRaces[savingRace] == true
 
-    local saverFactionIds = {}
-    do
-        local saverReps = CharDBQuery(string.format("SELECT faction FROM character_reputation WHERE guid = %d", savingGuid))
-        if not saverReps then return end
-        repeat
-            saverFactionIds[#saverFactionIds+1] = saverReps:GetUInt32(0)
-        until not saverReps:NextRow()
-    end
-    if #saverFactionIds == 0 then return end
-
-    local saverFactionIdCSV = toCSV(saverFactionIds)
+    local saverFactionIds, saverFactionIdCSV = GetSaverFactionIdsCached(savingGuid, savingIsAlliance, savingIsHorde)
+    if not saverFactionIds or #saverFactionIds == 0 then return end
 
     local maxAdjustedAllianceByFaction = {}
     local maxAdjustedHordeByFaction = {}
@@ -193,7 +479,7 @@ local function SetReputationOnSave(event, player)
         end
     end
 
-    -- Compute the saving character's CURRENT adjusted standings from memory
+    -- Compute the saving character's current adjusted standings from memory
     local savingAdjustedByFaction = {}
     for _, factionId in ipairs(saverFactionIds) do
         local rawTotal = player:GetReputation(factionId)
@@ -202,7 +488,6 @@ local function SetReputationOnSave(event, player)
         savingAdjustedByFaction[factionId] = adjusted
     end
 
-    -- Decide target adjusted per faction, and batch write to all eligible chars
     local rowsToWrite = {}
 
     local function propagate(factionId, targetAdjusted, eligiblePredicate)
@@ -210,7 +495,7 @@ local function SetReputationOnSave(event, player)
         for i = 1, #accountChars do
             local charInfo = accountChars[i]
             if eligiblePredicate(charInfo.race) then
-                rowsToWrite[#rowsToWrite+1] = {
+                rowsToWrite[#rowsToWrite + 1] = {
                     guid = charInfo.guid,
                     factionId = factionId,
                     standing = clamped
@@ -248,27 +533,24 @@ local function SetReputationOnSave(event, player)
         local targetAdjusted
 
         if not hasExisting then
-            -- First time this faction appears on the account: take the saver’s value as-is
             targetAdjusted = savingAdjusted
         elseif saverWasMaxHolder and savingAdjusted < currentMaxAdjusted then
-            -- True loss by a current max-holder -> propagate down
             targetAdjusted = savingAdjusted
         else
-            -- Gains or non-max-holder saves -> do not lower
             targetAdjusted = math.max(currentMaxAdjusted, savingAdjusted)
         end
 
         propagate(factionId, targetAdjusted, eligible)
     end
 
-    execBatchUpsertReputation(rowsToWrite)
+    if #rowsToWrite == 0 then return end
+    execBatchUpsertReputationChunked(rowsToWrite, 500)
 end
 
--- Batch upsert many rows in one statement
 local function upsertManyForGuid(guid, factionToAdjustedStanding)
     local rows = {}
     for factionId, adjustedStanding in pairs(factionToAdjustedStanding) do
-        rows[#rows+1] = string.format("(%d,%d,%d)", guid, factionId, adjustedStanding)
+        rows[#rows + 1] = string.format("(%d,%d,%d)", guid, factionId, adjustedStanding)
     end
     if #rows == 0 then return end
     CharDBExecute([[
@@ -279,10 +561,11 @@ local function upsertManyForGuid(guid, factionToAdjustedStanding)
 end
 
 local function SetReputationOnCharacterCreate(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
+    local accountId = player:GetAccountId()
+    InvalidateAccountCharsCache(accountId)
     local newGuid = player:GetGUIDLow()
     local newRace = player:GetRace()
 
@@ -290,7 +573,7 @@ local function SetReputationOnCharacterCreate(event, player)
     local newIsHorde = hordeRaces[newRace] == true
 
     local existingMaxAdjusted = CharDBQuery(string.format([[
-        SELECT mr.faction, mr.max_standing, ch.race, ch.class
+        SELECT mr.faction, mr.max_standing, ch.race
         FROM (
             SELECT cr.faction, MAX(cr.standing) AS max_standing
             FROM character_reputation cr
@@ -349,12 +632,14 @@ local function SetReputationOnCharacterCreate(event, player)
     upsertManyForGuid(newGuid, rowsForNew)
 end
 
-local function BroadcastLoginAnnouncement(event, player)
+local function OnLogin(event, player)
+    SeedAccountReputationIfNeeded(player)
+
     if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 end
 
 RegisterPlayerEvent(1, SetReputationOnCharacterCreate) -- EVENT_ON_CHARACTER_CREATE
-RegisterPlayerEvent(3, BroadcastLoginAnnouncement) -- EVENT_ON_LOGIN
+RegisterPlayerEvent(3, OnLogin) -- EVENT_ON_LOGIN
 RegisterPlayerEvent(25, SetReputationOnSave) -- EVENT_ON_SAVE

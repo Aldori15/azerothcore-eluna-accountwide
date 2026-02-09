@@ -34,17 +34,23 @@ end
 -- Dynamically populate currency items and store them in memory
 local currencyItemIDs = FetchCurrencyItemIDs()
 
-local function FetchAccountCurrency(accountId, currencyId)
-    local query = CharDBQuery(string.format("SELECT count FROM accountwide_currency WHERE accountId = %d AND currencyId = %d", accountId, currencyId))
-    return query and query:GetUInt32(0) or 0
+local function FetchAccountCurrency(accountId)
+    local map = {}
+    local query = CharDBQuery(string.format("SELECT currencyId, count FROM accountwide_currency WHERE accountId = %d", accountId))
+    if query then
+        repeat
+            map[query:GetUInt32(0)] = query:GetUInt32(1)
+        until not query:NextRow()
+    end
+    return map
 end
 
 local function UpdateAccountCurrency(accountId, currencyId, newCount)
     CharDBExecute(string.format("INSERT INTO accountwide_currency (accountId, currencyId, count) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE count = %d", accountId, currencyId, newCount, newCount))
 end
 
--- Record a baseline snapshot of what the player has right after login sync
-local lastSynced = {}  -- lastSynced[guidLow] = { [currencyId] = count }
+-- Record a baseline snapshot of what the player has
+local lastSynced = {}
 local function RecordLastSynced(player)
     local guid = player:GetGUIDLow()
     local map = {}
@@ -54,13 +60,13 @@ local function RecordLastSynced(player)
     lastSynced[guid] = map
 end
 
--- Apply a delta (positive or negative) to the account row
 local function AddDeltaToAccountCurrency(accountId, currencyId, delta)
     if delta == 0 then return end
+
     local sql = string.format([[
         INSERT INTO accountwide_currency (accountId, currencyId, count)
-        VALUES (%d, %d, %d)
-        ON DUPLICATE KEY UPDATE count = GREATEST(0, count + VALUES(count))
+        VALUES (%d, %d, 0)
+        ON DUPLICATE KEY UPDATE count = GREATEST(0, count + (%d))
     ]], accountId, currencyId, delta)
     CharDBExecute(sql)
 end
@@ -100,8 +106,10 @@ end
 local function SyncCurrencyOnLogin(player, accountId)
     if #currencyItemIDs == 0 then return end
 
+    local bank = FetchAccountCurrency(accountId)
+
     for _, currencyId in ipairs(currencyItemIDs) do
-        local accountCurrencyCount = FetchAccountCurrency(accountId, currencyId)
+        local accountCurrencyCount = bank[currencyId] or 0
         local playerCurrencyCount = player:GetItemCount(currencyId, true)
 
         if playerCurrencyCount < accountCurrencyCount then
@@ -113,10 +121,10 @@ local function SyncCurrencyOnLogin(player, accountId)
 end
 
 local function AccountWideCurrency(event, player)
-    local accountId = player:GetAccountId()
-
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+
+    local accountId = player:GetAccountId()
 
     if event == 3 then
         if ANNOUNCE_ON_LOGIN then
@@ -128,7 +136,7 @@ local function AccountWideCurrency(event, player)
         player:RegisterEvent(function(_, _, _, player)
             SyncCurrencyOnLogin(player, accountId)
             RecordLastSynced(player)
-        end, 1000, 1) -- Delay of 1sec to ensure that the Initialize function finishes seeding
+        end, 1000, 1) -- Delay of 1sec to ensure that seeding finishes before syncing
     elseif event == 25 then
         if #currencyItemIDs == 0 then return end
 
@@ -142,13 +150,13 @@ local function AccountWideCurrency(event, player)
 
             local baseline = lastSynced[guid][currencyId]
             if baseline == nil then
-                baseline = FetchAccountCurrency(accountId, currencyId) or 0
-            end
-
-            local delta = current - baseline
-            if delta ~= 0 then
-                AddDeltaToAccountCurrency(accountId, currencyId, delta)
-                lastSynced[guid][currencyId] = current  -- update baseline
+                lastSynced[guid][currencyId] = current
+            else
+                local delta = current - baseline
+                if delta ~= 0 then
+                    AddDeltaToAccountCurrency(accountId, currencyId, delta)
+                    lastSynced[guid][currencyId] = current
+                end
             end
         end        
     end

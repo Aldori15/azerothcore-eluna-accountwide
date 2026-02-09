@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS `accountwide_pvp_rank` (
 -- This table is now obsolete, so remove it for players who were using the table prior to this change
 DROP TABLE IF EXISTS `accountwide_reputation`;
 
+-- Create the accountwide_reputation_seed table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_reputation_seed` (
+  `accountId` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `seeded` TINYINT(1) NOT NULL DEFAULT 0,
+  `seeded_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create the accountwide_taxi_alliance table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_taxi_alliance` (
     `accountId` INT UNSIGNED NOT NULL,

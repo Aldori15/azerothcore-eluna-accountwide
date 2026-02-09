@@ -39,6 +39,9 @@ local VALID_TITLE_SET = (function()
     return set
 end)()
 
+local accountTitleCache = {}
+local backfillDone = {}
+
 local function insertTitlesBatch(accountId, titleIds)
     if #titleIds == 0 then return end
 
@@ -58,41 +61,86 @@ local function insertTitlesBatch(accountId, titleIds)
     end
 end
 
+local function getOrLoadAccountTitleSet(accountId)
+    if accountTitleCache[accountId] then
+        return accountTitleCache[accountId]
+    end
+
+    local set = {}
+    local query = CharDBQuery(string.format("SELECT titleId FROM accountwide_titles WHERE accountId = %d", accountId))
+    if query then
+        repeat
+            set[query:GetUInt32(0)] = true
+        until not query:NextRow()
+    end
+
+    accountTitleCache[accountId] = set
+    return set
+end
+
+local function seedIfEmpty(accountId, player, accountSet)
+    if backfillDone[accountId] then return false end
+
+    -- Nothing to seed if we already loaded rows for this account
+    if next(accountSet) ~= nil then
+        backfillDone[accountId] = true
+        return false
+    end
+
+    -- Seed from this character’s currently known titles
+    local toInsert = {}
+    for i = 1, #VALID_TITLE_IDS do
+        local titleId = VALID_TITLE_IDS[i]
+        if player:HasTitle(titleId) then
+            accountSet[titleId] = true
+            toInsert[#toInsert+1] = titleId
+        end
+    end
+
+    insertTitlesBatch(accountId, toInsert)
+    backfillDone[accountId] = true
+    return (#toInsert > 0)
+end
+
 local function GrantAccountwideTitlesOnLogin(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     if ANNOUNCE_ON_LOGIN then
         player:SendBroadcastMessage(ANNOUNCEMENT)
     end
 
-    local query = CharDBQuery(string.format("SELECT titleId FROM accountwide_titles WHERE accountId = %d", accountId))
-    if query then
-        repeat
-            local titleId = query:GetUInt32(0)
-            if VALID_TITLE_SET[titleId] and not player:HasTitle(titleId) then
-                player:SetKnownTitle(titleId)
-            end
-        until not query:NextRow()
+    local accountId = player:GetAccountId()
+    local accountSet = getOrLoadAccountTitleSet(accountId)
+
+    seedIfEmpty(accountId, player, accountSet)
+
+    -- Grant missing titles from cached account set
+    for titleId in pairs(accountSet) do
+        if not player:HasTitle(titleId) then
+            player:SetKnownTitle(titleId)
+        end
     end
 end
 
 local function SyncTitlesOnLogout(event, player)
-    local accountId = player:GetAccountId()
     -- Skip playerbot accounts
-    if AUtils.isPlayerBotAccount(accountId) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
-    local newlyEarned = {}
+    local accountId = player:GetAccountId()
+    local accountSet = getOrLoadAccountTitleSet(accountId)
+
+    local toInsert = {}
     for i = 1, #VALID_TITLE_IDS do
         local titleId = VALID_TITLE_IDS[i]
 
-        if player:HasTitle(titleId) then
-            newlyEarned[#newlyEarned+1] = titleId
+        if player:HasTitle(titleId) and not accountSet[titleId] then
+            accountSet[titleId] = true
+            toInsert[#toInsert+1] = titleId
         end
     end
 
-    insertTitlesBatch(accountId, newlyEarned)
+    insertTitlesBatch(accountId, toInsert)
 end
 
 RegisterPlayerEvent(3, GrantAccountwideTitlesOnLogin)  -- EVENT_ON_LOGIN
