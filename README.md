@@ -29,6 +29,22 @@ This script allows learned pet companions to be shared across all characters on 
 
 All of the pets are defined in the "petSpellIDs" table on Line 18.  Feel free to add/remove any to tailor to your server if needed.
 
+### Playtime
+This script provides a playtime summary across all characters on your account.  This is similar to the `/played` command, but shows accountwide totals and a per-character breakdown in a cleaner format.
+
+When using the in-game chat command `.playtime` (or any of its aliases), the script will display:
+- Total playtime for your current character
+- Total combined playtime across all characters on the account
+- A per-character breakdown showing each character's share of total playtime
+
+Supported chat commands:
+
+- `.playtime`
+- `.accountplaytime`
+- `.awplaytime`
+- `.played`
+- `.awplayed`
+
 ### PvP Rank/Stats
 This script will sync your PvP Rank/Stats across all of your characters: Honorable Kills, Honor Points, Arena Points. This data will be stored in a new `accountwide_pvp_rank` table.
 
