@@ -58,12 +58,21 @@ will stay true as they do today.  Horde factions will only be shared to horde ch
 Neutral factions will be shared to both.
 
 ### Taxi Paths / Flight Paths
-IMPORTANT!!!!
-This script will require my fork of `mod-ale` found [here](https://github.com/Aldori15/mod-ale). I had to add new C++ methods to ALE to expose the taxi node data.  I submitted a pull request to Acore's main ALE repo, so you could alternatively use that with at least [this commit](https://github.com/azerothcore/mod-ale/commit/bcfe631307cda63514492366f659549ecf050854).
 
-This script will synchronize learned flight paths across all characters on your account that are within the same faction.
+This script synchronizes learned flight paths across all characters on your account that belong to the same faction.
     	
-Due to horde/alliance interactions, horde flight paths will only be shared with other horde characters and alliance flight paths will only be shared with other alliance characters on the same account.
+Due to Horde/Alliance restrictions, Horde flight paths will only be shared with other Horde characters, and Alliance flight paths will only be shared with other Alliance characters.
+
+**Important:** This script requires updated ALE C++ bindings to expose taxi node data to Lua.
+
+To use this feature, you must either:
+
+- Use my fork of `mod-ale`: [Aldori15/mod-ale](https://github.com/Aldori15/mod-ale)  
+**or**
+- Use the official Azerothcore `mod-ale` repo, as long as it includes these commits (or newer):  
+  - [Required commit](https://github.com/azerothcore/mod-ale/commit/fe47a5d9c3a2a22f33ea3b1f3ccdc126a0d916dd)
+  - [Required commit](https://github.com/azerothcore/mod-ale/commit/bcfe631307cda63514492366f659549ecf050854)
+
 
 ### Titles
 Want to flaunt that hard earned title on all of your characters?  This script will synchronize earned character titles to the other characters on your account.  This data will be stored in a new `accountwide_titles` table.
@@ -80,5 +89,6 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 > [!WARNING]
 > # If you use AccountReputation:
 > - Make sure you use the correct AccountReputation script to avoid weird results.  If you are using base/unmodified AC-Wotlk server without custom races and without a modified Faction.dbc file, then use the `AccountReputation (default AC-Wotlk)` file.  Otherwise if you are using our modified Ashen Order server, then use the `AccountReputation (modified for Ashen Order)` file.  Be sure to delete out the other file that you are not using.  It is HIGHLY recommended to install this on a fresh server.
+
 
 
