@@ -248,10 +248,22 @@ local function StartSeedLogoutCountdown(player, accountId)
             ApplyPendingSeedForAccount(accountId)
         end, 2000, 1)
 
-        -- I would like to use LogoutPlayer here but currently it crashes the worldserver. Once this is fixed in ALE, i'll switch to that instead:
-        -- https://github.com/azerothcore/mod-ale/issues/359
-        -- plr:LogoutPlayer(false)
-        plr:KickPlayer()
+        -- Refetch player GUID so it's not invalidated due to CreateLuaEvent
+        local guid = plr:GetGUIDLow()
+
+        CreateLuaEvent(function()
+            local p = GetPlayerByGUID(guid)
+            if not p then
+                if plr then
+                    plr:KickPlayer()
+                end
+                return
+            end
+
+            if p:IsInWorld() then
+                p:LogoutPlayer(true)
+            end
+        end, 1, 1)
     end
 
     local function tick(eventId, delay, calls, plr)
