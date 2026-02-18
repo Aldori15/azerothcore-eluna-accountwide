@@ -65,6 +65,19 @@ function AccountWideUtils.isPlayerBotAccount(accountId)
     return isBot
 end
 
+function AccountWideUtils.isPlayerBot(player)
+    AccountWideUtils.checkPlayerbotsModule()
+    if not hasPlayerbots then return false end
+
+    if type(player.IsBot) == "function" then
+        return player:IsBot()
+    end
+
+    -- Fallback if IsBot isn't available in this ALE build
+    local accountId = player:GetAccountId()
+    return AccountWideUtils.isPlayerBotAccount(accountId)
+end
+
 -- ==============================================================================================
 -- Altbot detection
 -- "Altbot" = another character on the same account online at the same time.
@@ -84,10 +97,9 @@ end
 function AccountWideUtils.isAltBotCharacter(player)
     AccountWideUtils.checkPlayerbotsModule()
     if not hasPlayerbots then return false end
+    if AccountWideUtils.isPlayerBot(player) then return false end
 
     local accountId = player:GetAccountId()
-    if AccountWideUtils.isPlayerBotAccount(accountId) then return false end
-
     local guids = getOnlineGuidsForAccount(accountId)
     if #guids <= 1 then return false end  -- solo online => never an Altbot
 
@@ -163,10 +175,8 @@ end
 -- Gates used by Accountwide scripts
 -- ==============================================================================================
 function AccountWideUtils.shouldSkipAll(player)
-    local accountId = player:GetAccountId()
-
     -- RNDbots: never process in accountwide systems
-    if AccountWideUtils.isPlayerBotAccount(accountId) then return true end
+    if AccountWideUtils.isPlayerBot(player) then return true end
 
     -- Altbots: optionally skip completely
     if EXCLUDE_ALTBOTS_FULL and AccountWideUtils.isAltBotCharacter(player) then return true end
