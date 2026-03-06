@@ -119,10 +119,23 @@ local function execBatchUpsertReputationChunked(rows, chunkSize)
     end
 end
 
+local SEEDED_ACCOUNT_CACHE = {}
+
 local function HasAccountBeenSeeded(accountId)
+    local cached = SEEDED_ACCOUNT_CACHE[accountId]
+    if cached ~= nil then
+        return cached
+    end
+
     local seeded = CharDBQuery(string.format("SELECT seeded FROM accountwide_reputation_seed WHERE accountId = %d", accountId))
-    if not seeded then return false end
-    return seeded:GetUInt8(0) == 1
+    if not seeded then
+        SEEDED_ACCOUNT_CACHE[accountId] = false
+        return false
+    end
+
+    local isSeeded = (seeded:GetUInt8(0) == 1)
+    SEEDED_ACCOUNT_CACHE[accountId] = isSeeded
+    return isSeeded
 end
 
 local function MarkAccountSeeded(accountId)
@@ -131,6 +144,7 @@ local function MarkAccountSeeded(accountId)
         VALUES (%d, 1)
         ON DUPLICATE KEY UPDATE seeded = 1, seeded_at = CURRENT_TIMESTAMP
     ]], accountId))
+    SEEDED_ACCOUNT_CACHE[accountId] = true
 end
 
 local PENDING_SEED_ROWS_BY_ACCOUNT = {}
@@ -139,6 +153,8 @@ local SEED_COUNTDOWN_EVENTID_BY_GUID = {}
 
 local ACCOUNT_CHARS_CACHE = {}
 local SAVER_FACTIONS_CACHE = {}
+local LAST_SAVED_ADJUSTED_BY_GUID = {}
+local DIRTY_REP_FACTIONS_BY_GUID = {}
 
 local function InvalidateAccountCharsCache(accountId)
     ACCOUNT_CHARS_CACHE[accountId] = nil
@@ -174,13 +190,13 @@ local function GetSaverFactionIdsCached(guid, savingIsAlliance, savingIsHorde)
     local now = os.time()
     local cached = SAVER_FACTIONS_CACHE[guid]
     if cached and (now - cached.ts) <= 60 then
-        return cached.ids, cached.csv
+        return cached.ids
     end
 
     local saverFactionIds = {}
     local saverReps = CharDBQuery(string.format("SELECT faction FROM character_reputation WHERE guid = %d", guid))
     if not saverReps then
-        return nil, nil
+        return nil
     end
 
     repeat
@@ -199,12 +215,61 @@ local function GetSaverFactionIdsCached(guid, savingIsAlliance, savingIsHorde)
     until not saverReps:NextRow()
 
     if #saverFactionIds == 0 then
-        return nil, nil
+        return nil
     end
 
-    local csv = toCSV(saverFactionIds)
-    SAVER_FACTIONS_CACHE[guid] = { ts = now, ids = saverFactionIds, csv = csv }
-    return saverFactionIds, csv
+    SAVER_FACTIONS_CACHE[guid] = { ts = now, ids = saverFactionIds }
+    return saverFactionIds
+end
+
+local function ComputeAdjustedStanding(player, race, class, factionId)
+    local rawTotal = player:GetReputation(factionId)
+    local baseOffset = GetBaseReputationOffset(race, class, factionId)
+    return ClampReputation(rawTotal - baseOffset)
+end
+
+local function MarkFactionDirty(guid, factionId)
+    if not factionId then return end
+
+    local dirty = DIRTY_REP_FACTIONS_BY_GUID[guid]
+    if not dirty then
+        dirty = {}
+        DIRTY_REP_FACTIONS_BY_GUID[guid] = dirty
+    end
+    dirty[factionId] = true
+end
+
+local function UpdateAdjustedSnapshot(guid, factionIds, adjustedByFaction)
+    if not factionIds or #factionIds == 0 then return end
+
+    local snap = LAST_SAVED_ADJUSTED_BY_GUID[guid]
+    if not snap then
+        snap = {}
+        LAST_SAVED_ADJUSTED_BY_GUID[guid] = snap
+    end
+
+    for i = 1, #factionIds do
+        local factionId = factionIds[i]
+        snap[factionId] = adjustedByFaction[factionId]
+    end
+end
+
+local function ClearProcessedDirtyFlags(guid, factionIds)
+    local dirty = DIRTY_REP_FACTIONS_BY_GUID[guid]
+    if not dirty then return end
+
+    if not factionIds or #factionIds == 0 then
+        DIRTY_REP_FACTIONS_BY_GUID[guid] = nil
+        return
+    end
+
+    for i = 1, #factionIds do
+        dirty[factionIds[i]] = nil
+    end
+
+    if next(dirty) == nil then
+        DIRTY_REP_FACTIONS_BY_GUID[guid] = nil
+    end
 end
 
 local function ApplyPendingSeedForAccount(accountId)
@@ -420,6 +485,7 @@ local function SetReputationOnSave(event, player)
     if PENDING_SEED_IN_PROGRESS[accountId] then return end
 
     local savingGuid = player:GetGUIDLow()
+
     local savingRace = player:GetRace()
     local savingClass = player:GetClass()
 
@@ -429,12 +495,58 @@ local function SetReputationOnSave(event, player)
     local savingIsAlliance = allianceRaces[savingRace] == true
     local savingIsHorde = hordeRaces[savingRace] == true
 
-    local saverFactionIds, saverFactionIdCSV = GetSaverFactionIdsCached(savingGuid, savingIsAlliance, savingIsHorde)
+    local saverFactionIds = GetSaverFactionIdsCached(savingGuid, savingIsAlliance, savingIsHorde)
     if not saverFactionIds or #saverFactionIds == 0 then return end
+
+    local snapshot = LAST_SAVED_ADJUSTED_BY_GUID[savingGuid]
+    local dirtySet = DIRTY_REP_FACTIONS_BY_GUID[savingGuid]
+
+    -- Use event hints as a scope reduction only after we already have a snapshot baseline.
+    local candidateFactionIds = saverFactionIds
+    if snapshot and dirtySet then
+        local hintedFactionIds = {}
+        for i = 1, #saverFactionIds do
+            local factionId = saverFactionIds[i]
+            if dirtySet[factionId] then
+                hintedFactionIds[#hintedFactionIds + 1] = factionId
+            end
+        end
+        if #hintedFactionIds > 0 then
+            candidateFactionIds = hintedFactionIds
+        end
+    end
+
+    local savingAdjustedByFaction = {}
+    for i = 1, #candidateFactionIds do
+        local factionId = candidateFactionIds[i]
+        savingAdjustedByFaction[factionId] = ComputeAdjustedStanding(player, savingRace, savingClass, factionId)
+    end
+
+    local changedFactionIds = {}
+    if snapshot then
+        for i = 1, #candidateFactionIds do
+            local factionId = candidateFactionIds[i]
+            if snapshot[factionId] ~= savingAdjustedByFaction[factionId] then
+                changedFactionIds[#changedFactionIds + 1] = factionId
+            end
+        end
+    else
+        for i = 1, #candidateFactionIds do
+            changedFactionIds[#changedFactionIds + 1] = candidateFactionIds[i]
+        end
+    end
+
+    if #changedFactionIds == 0 then
+        ClearProcessedDirtyFlags(savingGuid, candidateFactionIds)
+        return
+    end
+
+    local changedFactionIdCSV = toCSV(changedFactionIds)
 
     local maxAdjustedAllianceByFaction = {}
     local maxAdjustedHordeByFaction = {}
     local maxAdjustedNeutralByFaction = {}
+    local currentStandingByGuidFaction = {}
 
     local maxHolderGuidsAlliance = {}
     local maxHolderGuidsHorde = {}
@@ -447,7 +559,7 @@ local function SetReputationOnSave(event, player)
               JOIN characters ch ON ch.guid = cr.guid
              WHERE ch.account = %d
                AND cr.faction IN (%s)
-        ]], accountId, saverFactionIdCSV))
+        ]], accountId, changedFactionIdCSV))
 
         if accountRepQuery then
             repeat
@@ -455,6 +567,13 @@ local function SetReputationOnSave(event, player)
                 local factionId = accountRepQuery:GetUInt32(1)
                 local adjustedStanding = accountRepQuery:GetInt32(2)
                 local holderRace = accountRepQuery:GetUInt8(3)
+
+                local byFaction = currentStandingByGuidFaction[guid]
+                if not byFaction then
+                    byFaction = {}
+                    currentStandingByGuidFaction[guid] = byFaction
+                end
+                byFaction[factionId] = adjustedStanding
 
                 local isAllianceFaction = allianceFactions[factionId] == true
                 local isHordeFaction = hordeFactions[factionId] == true
@@ -491,15 +610,6 @@ local function SetReputationOnSave(event, player)
         end
     end
 
-    -- Compute the saving character's current adjusted standings from memory
-    local savingAdjustedByFaction = {}
-    for _, factionId in ipairs(saverFactionIds) do
-        local rawTotal = player:GetReputation(factionId)
-        local baseOffset = GetBaseReputationOffset(savingRace, savingClass, factionId)
-        local adjusted = ClampReputation(rawTotal - baseOffset)
-        savingAdjustedByFaction[factionId] = adjusted
-    end
-
     local rowsToWrite = {}
 
     local function propagate(factionId, targetAdjusted, eligiblePredicate)
@@ -507,16 +617,28 @@ local function SetReputationOnSave(event, player)
         for i = 1, #accountChars do
             local charInfo = accountChars[i]
             if eligiblePredicate(charInfo.race) then
-                rowsToWrite[#rowsToWrite + 1] = {
-                    guid = charInfo.guid,
-                    factionId = factionId,
-                    standing = clamped
-                }
+                local byFaction = currentStandingByGuidFaction[charInfo.guid]
+                local currentStanding = byFaction and byFaction[factionId] or nil
+
+                -- Preserve behavior, but skip no-op writes where DB already matches.
+                if currentStanding ~= clamped then
+                    rowsToWrite[#rowsToWrite + 1] = {
+                        guid = charInfo.guid,
+                        factionId = factionId,
+                        standing = clamped
+                    }
+
+                    if not byFaction then
+                        byFaction = {}
+                        currentStandingByGuidFaction[charInfo.guid] = byFaction
+                    end
+                    byFaction[factionId] = clamped
+                end
             end
         end
     end
 
-    for _, factionId in ipairs(saverFactionIds) do
+    for _, factionId in ipairs(changedFactionIds) do
         local isAllianceFaction = allianceFactions[factionId] == true
         local isHordeFaction = hordeFactions[factionId] == true
         local isNeutralFaction = (not isAllianceFaction and not isHordeFaction)
@@ -554,6 +676,9 @@ local function SetReputationOnSave(event, player)
 
         propagate(factionId, targetAdjusted, eligible)
     end
+
+    UpdateAdjustedSnapshot(savingGuid, changedFactionIds, savingAdjustedByFaction)
+    ClearProcessedDirtyFlags(savingGuid, changedFactionIds)
 
     if #rowsToWrite == 0 then return end
     execBatchUpsertReputationChunked(rowsToWrite, 500)
@@ -644,6 +769,19 @@ local function SetReputationOnCharacterCreate(event, player)
     upsertManyForGuid(newGuid, rowsForNew)
 end
 
+local function OnReputationChange(event, player, factionId, standing, incremental)
+    -- Skip playerbot accounts
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+
+    MarkFactionDirty(player:GetGUIDLow(), factionId)
+end
+
+local function OnLogoutCleanup(event, player)
+    local guid = player:GetGUIDLow()
+    LAST_SAVED_ADJUSTED_BY_GUID[guid] = nil
+    DIRTY_REP_FACTIONS_BY_GUID[guid] = nil
+end
+
 local function OnLogin(event, player)
     SeedAccountReputationIfNeeded(player)
 
@@ -654,4 +792,6 @@ end
 
 RegisterPlayerEvent(1, SetReputationOnCharacterCreate) -- EVENT_ON_CHARACTER_CREATE
 RegisterPlayerEvent(3, OnLogin) -- EVENT_ON_LOGIN
+RegisterPlayerEvent(4, OnLogoutCleanup) -- EVENT_ON_LOGOUT
 RegisterPlayerEvent(25, SetReputationOnSave) -- EVENT_ON_SAVE
+RegisterPlayerEvent(15, OnReputationChange) -- PLAYER_EVENT_ON_REPUTATION_CHANGE

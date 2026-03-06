@@ -24,6 +24,7 @@ local AUtils = AccountWideUtils
 
 local accountMountCache = {}
 local backfillDone = {}
+local mountSyncInProgress = {}
 
 local function csvInt(list)
     local out = {}
@@ -89,13 +90,19 @@ local function OnLearnNewMount(event, player, spellID)
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
+    local guid = player:GetGUIDLow()
 
     if MOUNT_ID_SET[spellID] then
+        local cached = accountMountCache[accountId]
+
+        if mountSyncInProgress[guid] and cached and cached[spellID] then return end
+        if cached and cached[spellID] then return end
+
         CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, spellID))
 
         -- Keep cache in sync
-        if accountMountCache[accountId] then
-            accountMountCache[accountId][spellID] = true
+        if cached then
+            cached[spellID] = true
         end
     end
 end
@@ -116,11 +123,17 @@ local function LearnOwnedMountsNow(player, accountId)
     if next(ownedSet) == nil then return end
 
     -- Learn only those the account owns (and this character doesn't yet have)
-    for spellId in pairs(ownedSet) do
-        if not player:HasSpell(spellId) then
-            player:LearnSpell(spellId)
+    local guid = player:GetGUIDLow()
+    mountSyncInProgress[guid] = true
+    local ok = pcall(function()
+        for spellId in pairs(ownedSet) do
+            if not player:HasSpell(spellId) then
+                player:LearnSpell(spellId)
+            end
         end
-    end
+    end)
+    mountSyncInProgress[guid] = nil
+    if not ok then return end
 end
 
 local function SyncMountsToPlayer(event, player)
@@ -162,7 +175,15 @@ local function OnSendLearnedSpell(event, packet, player)
     end
 end
 
+local function OnPlayerLevelChanged(event, player, oldLevel)
+    local newLevel = player:GetLevel()
+    if oldLevel < MIN_MOUNT_LEVEL and newLevel >= MIN_MOUNT_LEVEL then
+        SyncMountsToPlayer(nil, player)
+    end
+end
+
 RegisterPlayerEvent(3, SyncMountsToPlayer) -- PLAYER_EVENT_ON_LOGIN
 RegisterPlayerEvent(44, OnLearnNewMount) -- PLAYER_EVENT_ON_LEARN_SPELL
+RegisterPlayerEvent(13, OnPlayerLevelChanged) -- PLAYER_EVENT_ON_LEVEL_CHANGE
 RegisterPacketEvent(299, 7, OnSendLearnedSpell) -- PACKET_EVENT_ON_PACKET_SEND (SMSG_LEARNED_SPELL)
 RegisterPacketEvent(300, 7, OnSendLearnedSpell) -- PACKET_EVENT_ON_PACKET_SEND (SMSG_SUPERCEDED_SPELL)

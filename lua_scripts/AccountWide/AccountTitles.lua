@@ -33,12 +33,6 @@ local VALID_TITLE_IDS = {
     209, 210, 211, 212, 213
 }
 
-local VALID_TITLE_SET = (function()
-    local set = {}
-    for i = 1, #VALID_TITLE_IDS do set[VALID_TITLE_IDS[i]] = true end
-    return set
-end)()
-
 local accountTitleCache = {}
 local backfillDone = {}
 

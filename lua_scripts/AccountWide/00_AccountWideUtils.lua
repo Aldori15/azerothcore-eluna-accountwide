@@ -82,48 +82,32 @@ end
 -- Altbot detection
 -- "Altbot" = another character on the same account online at the same time.
 -- ==============================================================================================
-local function getOnlineGuidsForAccount(accountId)
-    local set = onlineByAccount[accountId]
-    if not set then return {} end
-
-    local guids = {}
-    for guid,_ in pairs(set) do
-        guids[#guids + 1] = guid
-    end
-    table.sort(guids)
-    return guids
-end
-
 function AccountWideUtils.isAltBotCharacter(player)
     AccountWideUtils.checkPlayerbotsModule()
     if not hasPlayerbots then return false end
     if AccountWideUtils.isPlayerBot(player) then return false end
 
     local accountId = player:GetAccountId()
-    local guids = getOnlineGuidsForAccount(accountId)
-    if #guids <= 1 then return false end  -- solo online => never an Altbot
+    local count = onlineCount[accountId] or 0
+    if count <= 1 then return false end  -- solo online => never an Altbot
+
+    local set = onlineByAccount[accountId]
+    if not set then return false end
 
     local anchor = primaryByAccount[accountId]
-    if not anchor then
-        -- If no anchor yet, treat first online as anchor
-        anchor = guids[1]
+    if not anchor or not set[anchor] then
+        -- Pick deterministic anchor (lowest guid among online chars)
+        local lowest
+        for g,_ in pairs(set) do
+            if not lowest or g < lowest then
+                lowest = g
+            end
+        end
+        if not lowest then return false end
+        anchor = lowest
         primaryByAccount[accountId] = anchor
     end
     return player:GetGUIDLow() ~= anchor
-end
-
-function AccountWideUtils.markPrimaryOnLogin(player)
-    local accountId = player:GetAccountId()
-    if not primaryByAccount[accountId] then
-        primaryByAccount[accountId] = player:GetGUIDLow()
-    end
-end
-
-function AccountWideUtils.clearPrimaryOnLogout(player)
-    local accountId = player:GetAccountId()
-    if primaryByAccount[accountId] == player:GetGUIDLow() then
-        primaryByAccount[accountId] = nil
-    end
 end
 
 function AccountWideUtils.noteLogin(player)
@@ -203,3 +187,20 @@ function AccountWideUtils.shouldDoDownsync(player)
 
     return true
 end
+
+-- ==============================================================================================
+-- Presence tracking
+-- Keeps online-account state accurate even if a specific feature script is disabled.
+-- ==============================================================================================
+local function PresenceOnLogin(event, player)
+    if AccountWideUtils.isPlayerBot(player) then return end
+    AccountWideUtils.noteLogin(player)
+end
+
+local function PresenceOnLogout(event, player)
+    if AccountWideUtils.isPlayerBot(player) then return end
+    AccountWideUtils.noteLogout(player:GetAccountId(), player:GetGUIDLow())
+end
+
+RegisterPlayerEvent(3, PresenceOnLogin)   -- EVENT_ON_LOGIN
+RegisterPlayerEvent(4, PresenceOnLogout)  -- EVENT_ON_LOGOUT

@@ -22,6 +22,7 @@ local AUtils = AccountWideUtils
 
 local accountPetCache = {}
 local backfillDone = {}
+local petSyncInProgress = {}
 
 local function csvInt(list)
     local out = {}
@@ -87,13 +88,19 @@ local function OnLearnNewPet(event, player, spellID)
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
+    local guid = player:GetGUIDLow()
 
     if PET_ID_SET[spellID] then
+        local cached = accountPetCache[accountId]
+
+        if petSyncInProgress[guid] and cached and cached[spellID] then return end
+        if cached and cached[spellID] then return end
+
         CharDBExecute(string.format("INSERT IGNORE INTO accountwide_pets (accountId, petSpellId) VALUES (%d, %d)", accountId, spellID))
 
         -- Keep cache in sync
-        if accountPetCache[accountId] then
-            accountPetCache[accountId][spellID] = true
+        if cached then
+            cached[spellID] = true
         end
     end
 end
@@ -114,11 +121,17 @@ local function LearnOwnedPetsNow(player, accountId)
     if next(ownedSet) == nil then return end
 
     -- Learn only those the account owns (and this character doesn't yet have)
-    for spellId in pairs(ownedSet) do
-        if not player:HasSpell(spellId) then
-            player:LearnSpell(spellId)
+    local guid = player:GetGUIDLow()
+    petSyncInProgress[guid] = true
+    local ok = pcall(function()
+        for spellId in pairs(ownedSet) do
+            if not player:HasSpell(spellId) then
+                player:LearnSpell(spellId)
+            end
         end
-    end
+    end)
+    petSyncInProgress[guid] = nil
+    if not ok then return end
 end
 
 local function SyncPetsToPlayer(event, player)

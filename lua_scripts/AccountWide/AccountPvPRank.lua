@@ -17,6 +17,48 @@ local RUN_INIT_SEED_ON_STARTUP = true  -- set false after first server run
 if not ENABLE_ACCOUNTWIDE_PVP_RANK then return end
 
 local AUtils = AccountWideUtils
+local pvpSnapshotByAccount = {}
+
+local function BuildPvPRankPayload(arenaPoints, totalHonorPoints, todayHonorPoints, yesterdayHonorPoints, totalKills, todayKills, yesterdayKills)
+    return {
+        arenaPoints = arenaPoints,
+        totalHonorPoints = totalHonorPoints,
+        todayHonorPoints = todayHonorPoints,
+        yesterdayHonorPoints = yesterdayHonorPoints,
+        totalKills = totalKills,
+        todayKills = todayKills,
+        yesterdayKills = yesterdayKills
+    }
+end
+
+local function IsSamePvPRankPayload(a, b)
+    if not a or not b then return false end
+    return a.arenaPoints == b.arenaPoints
+       and a.totalHonorPoints == b.totalHonorPoints
+       and a.todayHonorPoints == b.todayHonorPoints
+       and a.yesterdayHonorPoints == b.yesterdayHonorPoints
+       and a.totalKills == b.totalKills
+       and a.todayKills == b.todayKills
+       and a.yesterdayKills == b.yesterdayKills
+end
+
+local function TryGetDailyPvPFromPlayer(player)
+    local hasDailyMethods =
+        type(player.GetTodayHonorPoints) == "function" and
+        type(player.GetYesterdayHonorPoints) == "function" and
+        type(player.GetTodayKills) == "function" and
+        type(player.GetYesterdayKills) == "function"
+
+    if not hasDailyMethods then
+        return nil, nil, nil, nil
+    end
+
+    return
+        (player:GetTodayHonorPoints() or 0),
+        (player:GetYesterdayHonorPoints() or 0),
+        (player:GetTodayKills() or 0),
+        (player:GetYesterdayKills() or 0)
+end
 
 local function InitializeAccountwidePvPRankTable()
     if not RUN_INIT_SEED_ON_STARTUP then return end
@@ -65,8 +107,8 @@ local function SyncPvPRankOnLogin(event, player)
 
     local query = CharDBQuery(string.format([[
         SELECT
-            c.todayHonorPoints, c.yesterdayHonorPoints,
-            c.todayKills, c.yesterdayKills,
+            c.arenaPoints, c.totalHonorPoints, c.todayHonorPoints, c.yesterdayHonorPoints,
+            c.totalKills, c.todayKills, c.yesterdayKills,
             aw.arenaPoints, aw.totalHonorPoints, aw.todayHonorPoints, aw.yesterdayHonorPoints,
             aw.totalKills, aw.todayKills, aw.yesterdayKills
         FROM characters c
@@ -76,37 +118,83 @@ local function SyncPvPRankOnLogin(event, player)
 
     if not query then return end
 
-    if query:IsNull(4) then
+    local c_todayHonor = query:GetUInt32(2)
+    local c_yesterdayHonor = query:GetUInt32(3)
+    local c_todayKills = query:GetUInt32(5)
+    local c_yesterdayKills = query:GetUInt32(6)
+
+    local awPayload
+
+    if query:IsNull(7) then
+        local seedQuery = CharDBQuery(string.format([[
+            SELECT
+                COALESCE(SUM(arenaPoints), 0),
+                COALESCE(SUM(totalHonorPoints), 0),
+                COALESCE(SUM(totalKills), 0)
+            FROM characters
+            WHERE account = %d
+        ]], accountId))
+
+        if seedQuery then
+            -- Keep long-lived totals account-wide, but seed day-bound counters
+            -- from the logging-in character to match runtime sync semantics.
+            awPayload = BuildPvPRankPayload(
+                seedQuery:GetUInt32(0),
+                seedQuery:GetUInt32(1),
+                query:GetUInt32(2),
+                query:GetUInt32(3),
+                seedQuery:GetUInt32(2),
+                query:GetUInt32(5),
+                query:GetUInt32(6)
+            )
+        else
+            -- Fallback to this character's persisted DB values if aggregate query fails.
+            awPayload = BuildPvPRankPayload(
+                query:GetUInt32(0),
+                query:GetUInt32(1),
+                query:GetUInt32(2),
+                query:GetUInt32(3),
+                query:GetUInt32(4),
+                query:GetUInt32(5),
+                query:GetUInt32(6)
+            )
+        end
+
         CharDBExecute(string.format([[
             INSERT INTO accountwide_pvp_rank
                 (accountId, arenaPoints, totalHonorPoints, todayHonorPoints, yesterdayHonorPoints, totalKills, todayKills, yesterdayKills)
             VALUES (%d, %d, %d, %d, %d, %d, %d, %d)
         ]],
             accountId,
-            player:GetArenaPoints(),
-            player:GetHonorPoints(),
-            query:GetUInt32(0),
-            query:GetUInt32(1),
-            player:GetLifetimeKills(),
-            query:GetUInt32(2),
-            query:GetUInt32(3)
+            awPayload.arenaPoints,
+            awPayload.totalHonorPoints,
+            awPayload.todayHonorPoints,
+            awPayload.yesterdayHonorPoints,
+            awPayload.totalKills,
+            awPayload.todayKills,
+            awPayload.yesterdayKills
         ))
-        -- After seeding, re-run the normal path next login/save
-        return
+    else
+        awPayload = BuildPvPRankPayload(
+            query:GetUInt32(7),
+            query:GetUInt32(8),
+            query:GetUInt32(9),
+            query:GetUInt32(10),
+            query:GetUInt32(11),
+            query:GetUInt32(12),
+            query:GetUInt32(13)
+        )
     end
 
-    local c_todayHonor     = query:GetUInt32(0)
-    local c_yesterdayHonor = query:GetUInt32(1)
-    local c_todayKills     = query:GetUInt32(2)
-    local c_yesterdayKills = query:GetUInt32(3)
+    pvpSnapshotByAccount[accountId] = awPayload
 
-    local aw_arenaPoints      = query:GetUInt32(4)
-    local aw_totalHonorPoints = query:GetUInt32(5)
-    local aw_todayHonor       = query:GetUInt32(6)
-    local aw_yesterdayHonor   = query:GetUInt32(7)
-    local aw_totalKills       = query:GetUInt32(8)
-    local aw_todayKills       = query:GetUInt32(9)
-    local aw_yesterdayKills   = query:GetUInt32(10)
+    local aw_arenaPoints = awPayload.arenaPoints
+    local aw_totalHonorPoints = awPayload.totalHonorPoints
+    local aw_todayHonor = awPayload.todayHonorPoints
+    local aw_yesterdayHonor = awPayload.yesterdayHonorPoints
+    local aw_totalKills = awPayload.totalKills
+    local aw_todayKills = awPayload.todayKills
+    local aw_yesterdayKills = awPayload.yesterdayKills
 
     if player:GetArenaPoints() ~= aw_arenaPoints then
         player:SetArenaPoints(aw_arenaPoints)
@@ -138,19 +226,36 @@ local function SyncPvPRankOnLogout(event, player)
     local accountId = player:GetAccountId()
     local guid = player:GetGUIDLow()
 
-    local arenaPoints   = player:GetArenaPoints()
-    local honorPoints   = player:GetHonorPoints()
+    local arenaPoints = player:GetArenaPoints()
+    local honorPoints = player:GetHonorPoints()
     local lifetimeKills = player:GetLifetimeKills()
+    local todayHonor, yesterdayHonor, todayKills, yesterdayKills = TryGetDailyPvPFromPlayer(player)
 
-    -- Delay so core has time to flush today's/yesterday's fields to DB
+    -- Keep delayed execution behavior for compatibility with existing flow.
     CreateLuaEvent(function()
-        local query = CharDBQuery(string.format("SELECT todayHonorPoints, yesterdayHonorPoints, todayKills, yesterdayKills FROM characters WHERE guid = %d", guid))
-        if not query then return end
+        if todayHonor == nil then
+            local query = CharDBQuery(string.format("SELECT todayHonorPoints, yesterdayHonorPoints, todayKills, yesterdayKills FROM characters WHERE guid = %d", guid))
+            if not query then return end
 
-        local todayHonor      = query:GetUInt32(0)
-        local yesterdayHonor  = query:GetUInt32(1)
-        local todayKills      = query:GetUInt32(2)
-        local yesterdayKills  = query:GetUInt32(3)
+            todayHonor = query:GetUInt32(0)
+            yesterdayHonor = query:GetUInt32(1)
+            todayKills = query:GetUInt32(2)
+            yesterdayKills = query:GetUInt32(3)
+        end
+
+        local newPayload = BuildPvPRankPayload(
+            arenaPoints,
+            honorPoints,
+            todayHonor,
+            yesterdayHonor,
+            lifetimeKills,
+            todayKills,
+            yesterdayKills
+        )
+
+        if IsSamePvPRankPayload(pvpSnapshotByAccount[accountId], newPayload) then
+            return
+        end
 
         -- Upsert accountwide using this character as the new source of truth
         CharDBExecute(string.format([[
@@ -180,9 +285,22 @@ local function SyncPvPRankOnLogout(event, player)
                 todayKills = %d,
                 yesterdayKills = %d
             WHERE account = %d
+              AND (
+                    arenaPoints <> %d
+                 OR totalHonorPoints <> %d
+                 OR todayHonorPoints <> %d
+                 OR yesterdayHonorPoints <> %d
+                 OR totalKills <> %d
+                 OR todayKills <> %d
+                 OR yesterdayKills <> %d
+              )
         ]],
-            arenaPoints, honorPoints, todayHonor, yesterdayHonor, lifetimeKills, todayKills, yesterdayKills, accountId
+            arenaPoints, honorPoints, todayHonor, yesterdayHonor, lifetimeKills, todayKills, yesterdayKills,
+            accountId,
+            arenaPoints, honorPoints, todayHonor, yesterdayHonor, lifetimeKills, todayKills, yesterdayKills
         ))
+
+        pvpSnapshotByAccount[accountId] = newPayload
     end, 1000, 1)
 end
 

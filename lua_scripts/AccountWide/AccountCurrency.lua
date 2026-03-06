@@ -16,6 +16,7 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
 local AUtils = AccountWideUtils
+local seededAccountCache = {}
 
 local function FetchCurrencyItemIDs()
     local itemIDs = {}
@@ -45,10 +46,6 @@ local function FetchAccountCurrency(accountId)
     return map
 end
 
-local function UpdateAccountCurrency(accountId, currencyId, newCount)
-    CharDBExecute(string.format("INSERT INTO accountwide_currency (accountId, currencyId, count) VALUES (%d, %d, %d) ON DUPLICATE KEY UPDATE count = %d", accountId, currencyId, newCount, newCount))
-end
-
 -- Record a baseline snapshot of what the player has
 local lastSynced = {}
 local function RecordLastSynced(player)
@@ -60,47 +57,55 @@ local function RecordLastSynced(player)
     lastSynced[guid] = map
 end
 
-local function AddDeltaToAccountCurrency(accountId, currencyId, delta)
-    if delta == 0 then return end
-
-    local sql = string.format([[
-        INSERT INTO accountwide_currency (accountId, currencyId, count)
-        VALUES (%d, %d, 0)
-        ON DUPLICATE KEY UPDATE count = GREATEST(0, count + (%d))
-    ]], accountId, currencyId, delta)
-    CharDBExecute(sql)
-end
-
 local function makeInList(ids)
     if #ids == 0 then return "NULL" end
     return table.concat(ids, ",")
 end
 
 local function RetroactivelySeedAccountCurrencyIfMissing(accountId)
+    if seededAccountCache[accountId] then return end
+
     -- If the account has any rows, then it has already been seeded
     local exists = CharDBQuery(string.format("SELECT 1 FROM accountwide_currency WHERE accountId = %d LIMIT 1", accountId))
-    if exists then return end
+    if exists then
+        seededAccountCache[accountId] = true
+        return
+    end
 
     -- Retroactive seeding for all characters that already have currency prior to applying this script
     local inList = makeInList(currencyItemIDs)
-    local sumQuery = CharDBQuery(string.format([[
-        SELECT ii.itemEntry, COALESCE(SUM(ii.count), 0) AS total
+    CharDBExecute(string.format([[
+        INSERT INTO accountwide_currency (accountId, currencyId, count)
+        SELECT %d, ii.itemEntry, COALESCE(SUM(ii.count), 0) AS total
         FROM item_instance ii
         JOIN characters c ON c.guid = ii.owner_guid
         WHERE c.account = %d
         AND ii.itemEntry IN (%s)
         GROUP BY ii.itemEntry
-    ]], accountId, inList))
+    ]], accountId, accountId, inList))
 
-    if sumQuery then
-        repeat
-            local currencyId = sumQuery:GetUInt32(0)
-            local total = sumQuery:GetUInt32(1)
-            if total > 0 then
-                UpdateAccountCurrency(accountId, currencyId, total)
-            end
-        until not sumQuery:NextRow()
+    seededAccountCache[accountId] = true
+end
+
+local function AddDeltasToAccountCurrencyBatch(accountId, deltas)
+    if #deltas == 0 then return end
+
+    local values = {}
+    local cases = {}
+
+    for i = 1, #deltas do
+        local row = deltas[i]
+        values[#values + 1] = string.format("(%d, %d, GREATEST(0, %d))", accountId, row.currencyId, row.delta)
+        cases[#cases + 1] = string.format("WHEN %d THEN %d", row.currencyId, row.delta)
     end
+
+    local sql = string.format([[
+        INSERT INTO accountwide_currency (accountId, currencyId, count)
+        VALUES %s
+        ON DUPLICATE KEY UPDATE count = GREATEST(0, count + CASE currencyId %s ELSE 0 END)
+    ]], table.concat(values, ", "), table.concat(cases, " "))
+
+    CharDBExecute(sql)
 end
 
 local function SyncCurrencyOnLogin(player, accountId)
@@ -145,6 +150,7 @@ local function AccountWideCurrency(event, player)
             lastSynced[guid] = {}
         end
 
+        local deltas = {}
         for _, currencyId in ipairs(currencyItemIDs) do
             local current = player:GetItemCount(currencyId, true) or 0
 
@@ -154,11 +160,13 @@ local function AccountWideCurrency(event, player)
             else
                 local delta = current - baseline
                 if delta ~= 0 then
-                    AddDeltaToAccountCurrency(accountId, currencyId, delta)
+                    deltas[#deltas + 1] = { currencyId = currencyId, delta = delta }
                     lastSynced[guid][currencyId] = current
                 end
             end
-        end        
+        end
+
+        AddDeltasToAccountCurrencyBatch(accountId, deltas)
     end
 end
 
