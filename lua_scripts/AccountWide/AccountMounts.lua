@@ -14,6 +14,8 @@ local MIN_MOUNT_LEVEL = 11  -- Minimum character level before mounts are learned
 local RETROACTIVE_NOTIFY = true
 local RETROACTIVE_DELAY_MS = 150
 
+local RESTRICT_BY_FACTION = true  -- true: restrict mounts between ally/horde. false: all mounts available.
+
 ------------------------------------------------------------------------------------------------
 -- END CONFIG
 ------------------------------------------------------------------------------------------------
@@ -39,7 +41,7 @@ end
 local MOUNT_ID_SET, uniq_list = {}, {}
 do
     local query = WorldDBQuery([[
-        SELECT DISTINCT spellid_2
+        SELECT spellid_2, AllowableRace
           FROM item_template
          WHERE class = 15
            AND subclass = 5
@@ -50,9 +52,21 @@ do
     if query then
         repeat
             local id = query:GetUInt32(0)
+            local raceMask = query:GetInt32(1)
+
             if id and id > 0 then
-                MOUNT_ID_SET[id] = true
-                uniq_list[#uniq_list+1] = id
+                if not MOUNT_ID_SET[id] then
+                    MOUNT_ID_SET[id] = raceMask
+                    uniq_list[#uniq_list+1] = id
+                elseif MOUNT_ID_SET[id] ~= -1 then
+                    -- If there are multiple items for the same spell, join permissions
+                    --  -1 equals all races (no restriction)
+                    if raceMask == -1 then
+                        MOUNT_ID_SET[id] = -1
+                    else
+                        MOUNT_ID_SET[id] = bit_or(MOUNT_ID_SET[id], raceMask)
+                    end
+                end
             end
         until not query:NextRow()
     end
@@ -87,7 +101,7 @@ end
 
 local function OnLearnNewMount(event, player, spellID)
     -- Skip playerbot accounts
-    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
     local guid = player:GetGUIDLow()
@@ -100,7 +114,6 @@ local function OnLearnNewMount(event, player, spellID)
 
         CharDBExecute(string.format("INSERT IGNORE INTO accountwide_mounts (accountId, mountSpellId) VALUES (%d, %d)", accountId, spellID))
 
-        -- Keep cache in sync
         if cached then
             cached[spellID] = true
         end
@@ -122,13 +135,19 @@ local function LearnOwnedMountsNow(player, accountId)
 
     if next(ownedSet) == nil then return end
 
-    -- Learn only those the account owns (and this character doesn't yet have)
     local guid = player:GetGUIDLow()
+    local playerRaceMask = player:GetRaceMask()
+
+    -- Learn only those the account owns (and this character doesn't yet have)
     mountSyncInProgress[guid] = true
     local ok = pcall(function()
         for spellId in pairs(ownedSet) do
             if not player:HasSpell(spellId) then
-                player:LearnSpell(spellId)
+                local reqMask = MOUNT_ID_SET[spellId]
+                
+                if not RESTRICT_BY_FACTION or reqMask == nil or reqMask == -1 or bit_and(reqMask, playerRaceMask) > 0 then
+                    player:LearnSpell(spellId)
+                end
             end
         end
     end)
@@ -138,7 +157,7 @@ end
 
 local function SyncMountsToPlayer(event, player)
     -- Skip playerbot accounts
-    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
     local playerLevel = player:GetLevel()
@@ -166,7 +185,7 @@ end
 
 local function OnSendLearnedSpell(event, packet, player)
     -- Skip playerbot accounts
-    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local spellId = packet:ReadULong()
     -- Apprentice Riding   Journeyman Riding   Expert Riding       Artisan Riding
