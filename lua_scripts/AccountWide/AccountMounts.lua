@@ -40,7 +40,6 @@ end
 -- class=15 subclass=5 (mount), spellid_1 is learning spell (483/55884), spellid_2 is the mount spell.
 local MOUNT_ID_SET, uniq_list = {}, {}
 do
-    -- Add AllowableRace to verify faction restriction
     local query = WorldDBQuery([[
         SELECT spellid_2, AllowableRace
           FROM item_template
@@ -65,7 +64,6 @@ do
                     if raceMask == -1 then
                         MOUNT_ID_SET[id] = -1
                     else
-                        -- bit_or is global Eluna function
                         MOUNT_ID_SET[id] = bit_or(MOUNT_ID_SET[id], raceMask)
                     end
                 end
@@ -137,21 +135,16 @@ local function LearnOwnedMountsNow(player, accountId)
 
     if next(ownedSet) == nil then return end
 
-    -- Learn only those the account owns (and this character doesn't yet have)
     local guid = player:GetGUIDLow()
-    
-    -- Calculates race mask (pow 2) 
-    --  Human (1) = 2^0 = 1 | Orc (2) = 2^1 = 2 | Dwarf (3) = 2^2 = 4, etc.
-    local playerRace = player:GetRace()
-    local playerRaceMask = 2 ^ (playerRace - 1)
+    local playerRaceMask = player:GetRaceMask()
 
+    -- Learn only those the account owns (and this character doesn't yet have)
     mountSyncInProgress[guid] = true
     local ok = pcall(function()
         for spellId in pairs(ownedSet) do
             if not player:HasSpell(spellId) then
                 local reqMask = MOUNT_ID_SET[spellId]
                 
-                -- Checks if faction restriction its enabled, if the mount is universal (-1) or if the race mask allows, using bit_and from Eluna
                 if not RESTRICT_BY_FACTION or reqMask == nil or reqMask == -1 or bit_and(reqMask, playerRaceMask) > 0 then
                     player:LearnSpell(spellId)
                 end
