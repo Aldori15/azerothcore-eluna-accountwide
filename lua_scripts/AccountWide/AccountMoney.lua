@@ -28,6 +28,10 @@ local REALTIME_TICK_JITTER_MS = 500
 if not ENABLE_ACCOUNTWIDE_MONEY then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Money.")
+    return
+end
 
 local lastSyncedMoney = {}
 local lastFlushAt = {}

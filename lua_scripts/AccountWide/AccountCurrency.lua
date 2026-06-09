@@ -16,6 +16,11 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Currency 
 if not ENABLE_ACCOUNTWIDE_CURRENCY then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Currency.")
+    return
+end
+
 local seededAccountCache = {}
 
 local function FetchCurrencyItemIDs()

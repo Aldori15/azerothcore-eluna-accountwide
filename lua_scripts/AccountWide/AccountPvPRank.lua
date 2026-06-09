@@ -17,6 +17,11 @@ local RUN_INIT_SEED_ON_STARTUP = true  -- set false after first server run
 if not ENABLE_ACCOUNTWIDE_PVP_RANK then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide PvP Rank.")
+    return
+end
+
 local pvpSnapshotByAccount = {}
 
 local function BuildPvPRankPayload(arenaPoints, totalHonorPoints, todayHonorPoints, yesterdayHonorPoints, totalKills, todayKills, yesterdayKills)

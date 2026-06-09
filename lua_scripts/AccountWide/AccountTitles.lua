@@ -18,6 +18,10 @@ local BATCH_SIZE = 100 -- SQL batching for fewer DB calls
 if not ENABLE_ACCOUNTWIDE_TITLES then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Titles.")
+    return
+end
 
 -- Valid title IDs from your CharTitles.dbc
 local VALID_TITLE_IDS = {

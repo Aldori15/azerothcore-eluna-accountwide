@@ -27,6 +27,10 @@ local SEED_LOGOUT_DELAY_SECONDS = 10
 if not ENABLE_ACCOUNTWIDE_REPUTATION then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Reputation.")
+    return
+end
 
 -- Alliance and Horde race and faction definitions
 local allianceRaces = {

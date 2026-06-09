@@ -19,6 +19,10 @@ local RETROACTIVE_DELAY_MS = 150
 if not ENABLE_ACCOUNTWIDE_PETS then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Pets.")
+    return
+end
 
 local accountPetCache = {}
 local backfillDone = {}

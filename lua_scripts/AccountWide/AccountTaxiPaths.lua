@@ -23,6 +23,10 @@ local BATCH_SIZE = 500
 if not ENABLE_ACCOUNTWIDE_TAXI_PATHS then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Taxi Paths.")
+    return
+end
 
 local accountTaxiCache = { alliance = {}, horde = {} }
 

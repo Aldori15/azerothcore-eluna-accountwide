@@ -23,6 +23,10 @@ local RESTRICT_BY_FACTION = true  -- true: restrict mounts between ally/horde. f
 if not ENABLE_ACCOUNTWIDE_MOUNTS then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Mounts.")
+    return
+end
 
 local accountMountCache = {}
 local backfillDone = {}
@@ -101,7 +105,7 @@ end
 
 local function OnLearnNewMount(event, player, spellID)
     -- Skip playerbot accounts
-    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
     local guid = player:GetGUIDLow()
@@ -157,7 +161,7 @@ end
 
 local function SyncMountsToPlayer(event, player)
     -- Skip playerbot accounts
-    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
     local playerLevel = player:GetLevel()
@@ -185,7 +189,7 @@ end
 
 local function OnSendLearnedSpell(event, packet, player)
     -- Skip playerbot accounts
-    if AUtils and AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
+    if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local spellId = packet:ReadULong()
     -- Apprentice Riding   Journeyman Riding   Expert Riding       Artisan Riding

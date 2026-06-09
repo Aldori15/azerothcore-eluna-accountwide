@@ -18,6 +18,10 @@ local SHOW_SECONDS = true  -- Show seconds in the formatted playtime output
 if not ENABLE_ACCOUNTWIDE_PLAYTIME then return end
 
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Playtime.")
+    return
+end
 
 local color = {
     HEADER  = "|cFF00B0E8",  -- Cyan

@@ -14,7 +14,13 @@ local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achieveme
 -- END CONFIG
 -- ---------------------------------------------------------------------------------------------
 
+if not ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS and not ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS then return end
+
 local AUtils = AccountWideUtils
+if not AUtils then
+    print("[AccountWide] Missing 00_AccountWideUtils.lua; disabling AccountWide Achievements.")
+    return
+end
 
 local completedAchievementsCache = {}
 local completedAchievementsLoaded = {}
