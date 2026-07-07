@@ -7,6 +7,10 @@
 local ENABLE_ACCOUNTWIDE_COMPLETED_ACHIEVEMENTS = false
 local ENABLE_ACCOUNTWIDE_CRITERIA_PROGRESS = false
 
+-- Realm First achievements are excluded by default because 
+-- they represent a specific character or realm race
+local ENABLE_ACCOUNTWIDE_REALM_FIRST_ACHIEVEMENTS = false
+
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Achievements |rlua script."
 
@@ -26,13 +30,39 @@ local completedAchievementsCache = {}
 local completedAchievementsLoaded = {}
 local completedAchievementsSeedAttempted = {}
 
+local REALM_FIRST_ACHIEVEMENTS = {
+    [456] = true, [457] = true, [458] = true, [459] = true, [460] = true, [461] = true,
+    [462] = true, [463] = true, [464] = true, [465] = true, [466] = true, [467] = true,
+    [1400] = true, [1402] = true, [1404] = true, [1405] = true, [1406] = true, [1407] = true,
+    [1408] = true, [1409] = true, [1410] = true, [1411] = true, [1412] = true, [1413] = true,
+    [1414] = true, [1415] = true, [1416] = true, [1417] = true, [1418] = true, [1419] = true,
+    [1420] = true, [1421] = true, [1422] = true, [1423] = true, [1424] = true, [1425] = true, 
+    [1426] = true, [1427] = true, [1463] = true, [3117] = true, [3259] = true, [4078] = true,
+    [4576] = true
+}
+
+local REALM_FIRST_ACHIEVEMENT_IDS = "456,457,458,459,460,461,462,463,464,465,466,467,1400,1402,1404,1405,1406,1407,1408,1409,1410,1411,1412,1413,1414,1415,1416,1417,1418,1419,1420,1421,1422,1423,1424,1425,1426,1427,1463,3117,3259,4078,4576"
+
+local function ShouldSkipCompletedAchievement(achievementId)
+    return not ENABLE_ACCOUNTWIDE_REALM_FIRST_ACHIEVEMENTS and REALM_FIRST_ACHIEVEMENTS[achievementId]
+end
+
+local function CompletedAchievementSqlFilter(columnName)
+    if ENABLE_ACCOUNTWIDE_REALM_FIRST_ACHIEVEMENTS then return "" end
+    return string.format(" AND %s NOT IN (%s)", columnName, REALM_FIRST_ACHIEVEMENT_IDS)
+end
+
 local function GetCompletedAchievementsForAccount(accountId)
     if completedAchievementsLoaded[accountId] then
         return completedAchievementsCache[accountId]
     end
 
     local achievements = {}
-    local query = CharDBQuery(string.format("SELECT achievementId FROM accountwide_achievements WHERE accountId = %d", accountId))
+    local query = CharDBQuery(string.format([[
+        SELECT achievementId
+          FROM accountwide_achievements
+         WHERE accountId = %d%s
+    ]], accountId, CompletedAchievementSqlFilter("achievementId")))
 
     if query then
         repeat
@@ -55,7 +85,7 @@ end
 
 local function AddMissingAchievements(player, achievementsSet)
     for achievementID, _ in pairs(achievementsSet) do
-        if not player:HasAchieved(achievementID) then
+        if not ShouldSkipCompletedAchievement(achievementID) and not player:HasAchieved(achievementID) then
             player:SetAchievement(achievementID)
         end
     end
@@ -85,15 +115,15 @@ local function SyncCompletedAchievementsOnLogin(event, player)
                 SELECT DISTINCT %d, ca.achievement
                 FROM character_achievement AS ca
                 JOIN characters AS c ON c.guid = ca.guid
-                WHERE c.account = %d
-            ]], accountId, accountId))
+                WHERE c.account = %d%s
+            ]], accountId, accountId, CompletedAchievementSqlFilter("ca.achievement")))
 
             local query = CharDBQuery(string.format([[
                 SELECT DISTINCT ca.achievement
                 FROM character_achievement AS ca
                 JOIN characters AS c ON c.guid = ca.guid
-                WHERE c.account = %d
-            ]], accountId))
+                WHERE c.account = %d%s
+            ]], accountId, CompletedAchievementSqlFilter("ca.achievement")))
 
             if query then
                 repeat
@@ -114,6 +144,7 @@ local function SyncCompletedAchievementOnEarn(event, player, achievement)
 
     local achievementId = achievement:GetId()
     if not achievementId then return end
+    if ShouldSkipCompletedAchievement(achievementId) then return end
 
     local accountId = player:GetAccountId()
     CharDBExecute(string.format([[
