@@ -13,8 +13,6 @@ local ENABLE_ACCOUNTWIDE_TAXI_PATHS = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
-local BATCH_SIZE = 500
-
 -- ------------------------------------------------------------------------------------------------
 -- END CONFIG
 -- ------------------------------------------------------------------------------------------------
@@ -59,6 +57,7 @@ end
 local function batchInsertIgnore(tableName, accountId, nodeIds)
     if #nodeIds == 0 then return end
 
+    local BATCH_SIZE = 500
     local values, count = {}, 0
     for i = 1, #nodeIds do
         values[#values + 1] = string.format("(%d,%d)", accountId, nodeIds[i])
