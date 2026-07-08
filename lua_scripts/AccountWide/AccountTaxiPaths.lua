@@ -57,21 +57,12 @@ end
 local function batchInsertIgnore(tableName, accountId, nodeIds)
     if #nodeIds == 0 then return end
 
-    local BATCH_SIZE = 500
-    local values, count = {}, 0
+    local values = {}
     for i = 1, #nodeIds do
         values[#values + 1] = string.format("(%d,%d)", accountId, nodeIds[i])
-        count = count + 1
-
-        if count == BATCH_SIZE then
-            CharDBExecute(("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES %s"):format(tableName, table.concat(values, ",")))
-            values, count = {}, 0
-        end
     end
 
-    if count > 0 then
-        CharDBExecute(("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES %s"):format(tableName, table.concat(values, ",")))
-    end
+    AUtils.insertValuesInBatches(("INSERT IGNORE INTO `%s` (accountId, nodeId) VALUES "):format(tableName), values, 500)
 end
 
 local function OnPlayerLogin(event, player)

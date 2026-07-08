@@ -65,7 +65,7 @@ end
 
 table.sort(PROFESSION_IDS)
 
-local PROFESSION_ID_CSV = table.concat(PROFESSION_IDS, ",")
+local PROFESSION_ID_CSV = AUtils.csv(PROFESSION_IDS)
 
 local maxPrimaryProfessionCache
 
@@ -200,25 +200,6 @@ local function GetStoredMaxSkillValue(player, skillId)
     return player:GetMaxSkillValue(skillId) or 0
 end
 
-local function ChunkList(list, chunkSize)
-    local chunks = {}
-    local i = 1
-    while i <= #list do
-        local chunk = {}
-        for j = i, math.min(i + chunkSize - 1, #list) do
-            chunk[#chunk + 1] = list[j]
-        end
-        chunks[#chunks + 1] = chunk
-        i = i + chunkSize
-    end
-    return chunks
-end
-
-local function Csv(list)
-    if #list == 0 then return "0" end
-    return table.concat(list, ",")
-end
-
 local function IsDownsyncAllowed(player)
     return not AUtils.shouldDoDownsync or AUtils.shouldDoDownsync(player)
 end
@@ -253,7 +234,7 @@ local function LoadProfessionRecipeSpellLookup()
     end
 
     table.sort(ids)
-    professionRecipeSpellChunks = ChunkList(ids, 500)
+    professionRecipeSpellChunks = AUtils.chunkList(ids, 500)
 
     if #ids == 0 then
         print("[AccountWide] Profession recipe lookup is empty. Import accountwide_profession_recipe_lookup.sql for recipe sync.")
@@ -377,11 +358,11 @@ local function SeedAccountProfessionsIfNeeded(accountId)
             CharDBExecute(string.format([[
                 INSERT IGNORE INTO accountwide_profession_recipes (accountId, spellId)
                 SELECT DISTINCT %d, cs.spell
-                  FROM character_spell AS cs
+                 FROM character_spell AS cs
                   JOIN characters AS c ON c.guid = cs.guid
                  WHERE c.account = %d
                    AND cs.spell IN (%s)
-            ]], accountId, accountId, Csv(chunk)))
+            ]], accountId, accountId, AUtils.csv(chunk)))
         end
 
         recipesSeeded = true

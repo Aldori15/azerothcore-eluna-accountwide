@@ -28,14 +28,6 @@ local accountPetCache = {}
 local backfillDone = {}
 local petSyncInProgress = {}
 
-local function csvInt(list)
-    local out = {}
-    for i = 1, #list do
-        out[i] = tostring(list[i])
-    end
-    return table.concat(out, ",")
-end
-
 -- Build pet spell list dynamically
 -- class=15 subclass=2 (pets), spellid_1 is learning spell (483/55884), spellid_2 is the pet spell.
 local PET_ID_SET, uniq_pets = {}, {}
@@ -61,7 +53,7 @@ do
 end
 
 -- cache once at load:
-local PET_ID_CSV = (#uniq_pets > 0) and csvInt(uniq_pets) or "0"
+local PET_ID_CSV = AUtils.csvInt(uniq_pets)
 
 local function InitializePetTable(accountId)
     -- If already backfilled this session, skip backfill

@@ -41,21 +41,12 @@ local backfillDone = {}
 local function insertTitlesBatch(accountId, titleIds)
     if #titleIds == 0 then return end
 
-    local BATCH_SIZE = 100
-    local values, count = {}, 0
+    local values = {}
     for i = 1, #titleIds do
         values[#values+1] = string.format("(%d,%d)", accountId, titleIds[i])
-        count = count + 1
-
-        if count == BATCH_SIZE then
-            CharDBExecute("INSERT IGNORE INTO accountwide_titles (accountId, titleId) VALUES " .. table.concat(values, ","))
-            values, count = {}, 0
-        end
     end
 
-    if count > 0 then
-        CharDBExecute("INSERT IGNORE INTO accountwide_titles (accountId, titleId) VALUES " .. table.concat(values, ","))
-    end
+    AUtils.insertValuesInBatches("INSERT IGNORE INTO accountwide_titles (accountId, titleId) VALUES ", values, 100)
 end
 
 local function getOrLoadAccountTitleSet(accountId)

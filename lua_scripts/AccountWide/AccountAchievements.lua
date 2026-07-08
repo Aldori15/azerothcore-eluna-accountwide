@@ -217,26 +217,12 @@ local function LoadCharacterCriteriaProgress(characterGuid)
     return progressByCriteria
 end
 
-local function ChunkList(list, chunkSize)
-    local chunks = {}
-    local i = 1
-    while i <= #list do
-        local chunk = {}
-        for j = i, math.min(i + chunkSize - 1, #list) do
-            chunk[#chunk+1] = list[j]
-        end
-        chunks[#chunks+1] = chunk
-        i = i + chunkSize
-    end
-    return chunks
-end
-
 local function LoadAccountMaxForCriteria(accountId, criteriaList)
     if #criteriaList == 0 then return {} end
 
     local maxByCriteria = {}
-    for _, chunk in ipairs(ChunkList(criteriaList, 800)) do
-        local csv = table.concat(chunk, ",")
+    for _, chunk in ipairs(AUtils.chunkList(criteriaList, 800)) do
+        local csv = AUtils.csv(chunk)
         local query = CharDBQuery(string.format([[
             SELECT criteria, counter, date
               FROM accountwide_criteria_max

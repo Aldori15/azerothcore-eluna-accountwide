@@ -188,6 +188,48 @@ function AccountWideUtils.shouldDoDownsync(player)
     return true
 end
 
+function AccountWideUtils.csv(list, emptyValue)
+    if not list or #list == 0 then return emptyValue or "0" end
+    return table.concat(list, ",")
+end
+
+function AccountWideUtils.csvInt(list, emptyValue)
+    if not list or #list == 0 then return emptyValue or "0" end
+
+    local out = {}
+    for i = 1, #list do
+        out[i] = tostring(list[i])
+    end
+    return table.concat(out, ",")
+end
+
+function AccountWideUtils.chunkList(list, chunkSize)
+    local chunks = {}
+    if not list or #list == 0 then return chunks end
+
+    local i = 1
+    while i <= #list do
+        local chunk = {}
+        for j = i, math.min(i + chunkSize - 1, #list) do
+            chunk[#chunk + 1] = list[j]
+        end
+        chunks[#chunks + 1] = chunk
+        i = i + chunkSize
+    end
+    return chunks
+end
+
+function AccountWideUtils.insertValuesInBatches(insertPrefix, rowValues, batchSize)
+    if not rowValues or #rowValues == 0 then return end
+
+    batchSize = tonumber(batchSize) or 500
+    if batchSize < 1 then batchSize = 500 end
+
+    for _, chunk in ipairs(AccountWideUtils.chunkList(rowValues, batchSize)) do
+        CharDBExecute(insertPrefix .. table.concat(chunk, ","))
+    end
+end
+
 -- ==============================================================================================
 -- Presence tracking
 -- Keeps online-account state accurate even if a specific feature script is disabled.

@@ -63,8 +63,7 @@ local function RecordLastSynced(player)
 end
 
 local function makeInList(ids)
-    if #ids == 0 then return "NULL" end
-    return table.concat(ids, ",")
+    return AUtils.csv(ids, "NULL")
 end
 
 local function RetroactivelySeedAccountCurrencyIfMissing(accountId)

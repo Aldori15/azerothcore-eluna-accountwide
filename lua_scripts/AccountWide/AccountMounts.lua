@@ -32,14 +32,6 @@ local accountMountCache = {}
 local backfillDone = {}
 local mountSyncInProgress = {}
 
-local function csvInt(list)
-    local out = {}
-    for i = 1, #list do 
-        out[i] = tostring(list[i])
-    end
-    return table.concat(out, ",")
-end
-
 -- Build mount spell list dynamically
 -- class=15 subclass=5 (mount), spellid_1 is learning spell (483/55884), spellid_2 is the mount spell.
 local MOUNT_ID_SET, uniq_list = {}, {}
@@ -77,7 +69,7 @@ do
 end
 
 -- cache once at load:
-local MOUNT_ID_CSV = (#uniq_list > 0) and csvInt(uniq_list) or "0"
+local MOUNT_ID_CSV = AUtils.csvInt(uniq_list)
 
 local function InitializeMountTable(accountId)
     -- If already backfilled this session, skip backfill
