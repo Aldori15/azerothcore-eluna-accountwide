@@ -13,7 +13,6 @@ local ENABLE_ACCOUNTWIDE_TAXI_PATHS = false
 local ANNOUNCE_ON_LOGIN = false
 local ANNOUNCEMENT = "This server is running the |cFF00B0E8AccountWide Taxi Paths |rlua script."
 
-local DEBUG_MODE = false  -- Toggle debug messages
 local BATCH_SIZE = 500
 
 -- ------------------------------------------------------------------------------------------------
@@ -93,16 +92,10 @@ local function OnPlayerLogin(event, player)
     for nodeId in pairs(accountSet) do
         if not player:HasKnownTaxiNode(nodeId) then
             toGrant[#toGrant + 1] = nodeId
-            if DEBUG_MODE then
-                print(string.format("[Taxi]: Player %s (guid=%d) missing nodeId=%d, adding to grant list", player:GetName(), player:GetGUIDLow(), nodeId))
-            end
         end
     end
 
     if #toGrant > 0 then
-        if DEBUG_MODE then
-            print(string.format("[Taxi]: Granting %d nodes to guid=%d", #toGrant, player:GetGUIDLow()))
-        end
         player:SetKnownTaxiNodes(toGrant)
     end
 end
@@ -130,11 +123,6 @@ local function OnPlayerLogout(event, player)
 
     if #toInsert > 0 then
         local tableName = factionTableName(team)
-
-        if DEBUG_MODE then
-            print(string.format("[Taxi]: Inserting %d new nodes for accountId=%d (%s)", #toInsert, accountId, tableName))
-        end
-
         batchInsertIgnore(tableName, accountId, toInsert)
     end
 end
