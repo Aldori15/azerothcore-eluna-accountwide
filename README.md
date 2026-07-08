@@ -45,6 +45,17 @@ Supported chat commands:
 - `.played`
 - `.awplayed`
 
+### Professions
+This script allows learned professions to be shared across all characters on your account.  It will sync each profession's highest accountwide skill progress, such as `30/75` Tailoring or `375/450` Enchanting, and can optionally sync learned profession recipes/patterns/plans after the character has the required profession skill.
+
+This data will be stored in the new `accountwide_professions`, `accountwide_profession_recipes`, and `accountwide_professions_seed` tables.
+
+Primary professions are controlled by the `MAX_PRIMARY_PROFESSIONS` config option.  Secondary professions (Cooking, First Aid, and Fishing) can be enabled or disabled separately with `INCLUDE_SECONDARY_PROFESSIONS`.  Recipe syncing can be enabled or disabled separately with `SYNC_PROFESSION_RECIPES`.
+
+If recipe syncing is enabled, you must also import `accountwide_profession_recipe_lookup.sql` into your Characters database.  This lookup table maps profession recipe spells to their required profession skill and is used so the script can avoid syncing unrelated spells.
+
+**Important:** This script requires an updated ALE `Player:SetSkill` binding that forwards arguments to AzerothCore as `id, step, currentVal, maxVal`.  This is done via this PR:  https://github.com/azerothcore/mod-ale/pull/391
+
 ### PvP Rank/Stats
 This script will sync your PvP Rank/Stats across all of your characters: Honorable Kills, Honor Points, Arena Points. This data will be stored in a new `accountwide_pvp_rank` table.
 
@@ -81,7 +92,8 @@ Want to flaunt that hard earned title on all of your characters?  This script wi
 
 > [!IMPORTANT]
 > # Setup / Installation
-> - Run the "create_accountwide_tables.sql" file on your Characters database.
+> - Run the `create_accountwide_tables.sql` file on your Characters database.
+> - If using AccountProfessions recipe syncing, also run the `accountwide_profession_recipe_lookup.sql` file on your Characters database.
 > - Copy the "AccountWide" folder into the lua_scripts folder on your server.
 > - Configure which module(s) you want to enable at the top of each Lua script.  All of them are turned off by default.
 > - Start up the server.

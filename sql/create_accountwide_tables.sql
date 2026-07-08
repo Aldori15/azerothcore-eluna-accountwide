@@ -45,14 +45,41 @@ CREATE TABLE IF NOT EXISTS `accountwide_pets` (
     PRIMARY KEY (`accountId`, `petSpellId`)
 );
 
--- -- Create the accountwide_professions table if it doesn't already exist (currently a WIP and not used)
--- CREATE TABLE IF NOT EXISTS `accountwide_professions` (
---   `accountId` INT NOT NULL,
---   `professionId` INT NOT NULL,
---   `currentVal` SMALLINT NOT NULL DEFAULT 0,
---   `maxVal` SMALLINT NOT NULL DEFAULT 0,
---   PRIMARY KEY (`accountId`, `professionId`)
--- );
+-- Create the accountwide_professions table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_professions` (
+  `accountId` INT UNSIGNED NOT NULL,
+  `professionId` SMALLINT UNSIGNED NOT NULL,
+  `currentVal` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `maxVal` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`accountId`, `professionId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create the accountwide_profession_recipes table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_profession_recipes` (
+  `accountId` INT UNSIGNED NOT NULL,
+  `spellId` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`accountId`, `spellId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create the accountwide_profession_recipe_lookup table if it doesn't already exist
+-- Populate this table with accountwide_profession_recipe_lookup.sql
+CREATE TABLE IF NOT EXISTS `accountwide_profession_recipe_lookup` (
+  `professionId` SMALLINT UNSIGNED NOT NULL,
+  `spellId` INT UNSIGNED NOT NULL,
+  `minSkillLineRank` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `raceMask` INT UNSIGNED NOT NULL DEFAULT 0,
+  `classMask` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`spellId`),
+  KEY `idx_professionId` (`professionId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create the accountwide_professions_seed table if it doesn't already exist
+CREATE TABLE IF NOT EXISTS `accountwide_professions_seed` (
+  `accountId` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `skillsSeeded` TINYINT(1) NOT NULL DEFAULT 0,
+  `recipesSeeded` TINYINT(1) NOT NULL DEFAULT 0,
+  `seeded_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Create the accountwide_pvp_rank table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS `accountwide_pvp_rank` (
