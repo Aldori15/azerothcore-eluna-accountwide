@@ -54,7 +54,7 @@ Primary professions are controlled by the `MAX_PRIMARY_PROFESSIONS` config optio
 
 If recipe syncing is enabled, you must also import `accountwide_profession_recipe_lookup.sql` into your Characters database.  This lookup table maps profession recipe spells to their required profession skill and is used so the script can avoid syncing unrelated spells.
 
-**Important:** This script requires an updated ALE `Player:SetSkill` binding that forwards arguments to AzerothCore as `id, step, currentVal, maxVal`.  This is done via this PR:  https://github.com/azerothcore/mod-ale/pull/391
+**Important:** This script requires an updated ALE `Player:SetSkill` binding that forwards arguments to AzerothCore as `id, step, currentVal, maxVal`.  Ensure your `mod-ale` includes this [Required commit](https://github.com/azerothcore/mod-ale/commit/9e5b8c66efeb383871ec58b925e47094c92cc8d5) or newer.
 
 ### PvP Rank/Stats
 This script will sync your PvP Rank/Stats across all of your characters: Honorable Kills, Honor Points, Arena Points. This data will be stored in a new `accountwide_pvp_rank` table.
