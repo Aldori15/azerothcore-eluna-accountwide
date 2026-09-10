@@ -96,7 +96,7 @@ local function InitializeMountTable(accountId)
 end
 
 local function OnLearnNewMount(event, player, spellID)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -152,7 +152,7 @@ local function LearnOwnedMountsNow(player, accountId)
 end
 
 local function SyncMountsToPlayer(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -180,7 +180,7 @@ local function SyncMountsToPlayer(event, player)
 end
 
 local function OnSendLearnedSpell(event, packet, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local spellId = packet:ReadULong()

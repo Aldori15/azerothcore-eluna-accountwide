@@ -264,7 +264,7 @@ local function StartRealtimeTimer(player)
 end
 
 local function AccountMoney(event, player)
-    -- Always skip RNDbots
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
 	-- Unfair Taxes Key (Taxation Without Representation Mode)
@@ -324,7 +324,7 @@ local function FormatMoney(copper)
 end
 
 local function HandleAccountBalance(player)
-    -- Always skip RNDbots
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return false end
 
     local accountId = player:GetAccountId()

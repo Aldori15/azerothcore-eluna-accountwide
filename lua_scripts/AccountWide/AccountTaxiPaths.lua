@@ -66,7 +66,7 @@ local function batchInsertIgnore(tableName, accountId, nodeIds)
 end
 
 local function OnPlayerLogin(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     if ANNOUNCE_ON_LOGIN then
@@ -91,7 +91,7 @@ local function OnPlayerLogin(event, player)
 end
 
 local function OnPlayerLogout(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()

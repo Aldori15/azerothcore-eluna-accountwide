@@ -80,7 +80,7 @@ local function InitializePetTable(accountId)
 end
 
 local function OnLearnNewPet(event, player, spellID)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -131,7 +131,7 @@ local function LearnOwnedPetsNow(player, accountId)
 end
 
 local function SyncPetsToPlayer(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()

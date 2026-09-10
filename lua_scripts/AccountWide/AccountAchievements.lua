@@ -92,7 +92,7 @@ local function AddMissingAchievements(player, achievementsSet)
 end
 
 local function SyncCompletedAchievementsOnLogin(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -138,7 +138,7 @@ local function SyncCompletedAchievementsOnLogin(event, player)
 end
 
 local function SyncCompletedAchievementOnEarn(event, player, achievement)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
     if not achievement then return end
 
@@ -316,7 +316,7 @@ local function PropagateDeltasToOtherCharacters(accountId, saverGuid, updatedCri
 end
 
 local function SyncCriteriaProgressOnCharacterCreate(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -347,7 +347,7 @@ local function SyncCriteriaProgressOnCharacterCreate(event, player)
 end
 
 local function SyncCriteriaProgressOnLogout(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()

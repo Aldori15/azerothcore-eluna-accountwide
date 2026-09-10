@@ -4,189 +4,81 @@
 -- This file contains shared helper functions used across each of the accountwide features
 -- for making them compatible with Playerbots.
 --
--- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-lua-accountwide
+-- Hosted by Aldori15 on Github: https://github.com/Aldori15/azerothcore-eluna-accountwide
 -- ----------------------------------------------------------------------------------------------
 
 if AccountWideUtils then return end -- Prevent double-loading
 AccountWideUtils = {}
 
-if EXCLUDE_ALTBOTS == nil then EXCLUDE_ALTBOTS = true end
-if EXCLUDE_ALTBOTS_FULL == nil then EXCLUDE_ALTBOTS_FULL = false end
+local EXCLUDE_ALTBOTS_FROM_DOWNSYNC = true
+local EXCLUDE_ALTBOTS_COMPLETELY = false
 
-local hasPlayerbots = nil
-local botAccountCache = {}
-local primaryByAccount = {}
+-- Playerbot methods are only registered by ALE when MOD_PLAYERBOTS is available
+local HAS_PLAYERBOTS = type(GetPlayerbotsMgr) == "function"
 
-local onlineByAccount = {}
-local onlineCount = {}
 
 -- ==============================================================================================
--- Playerbots module detection
--- We don't need to run any of this if the server doesn't have playerbots.
+-- Playerbot classification
 -- ==============================================================================================
-function AccountWideUtils.checkPlayerbotsModule()
-    if hasPlayerbots ~= nil then return end
 
-    if type(GetConfigValue) == "function" then
-        -- Try reading the playerbots.conf file
-        local value = GetConfigValue("AiPlayerbot.Enabled")
-
-        if value ~= nil and value ~= "" then
-            hasPlayerbots = (tonumber(value) or 0) ~= 0
-            return
-        end
-
-        -- playerbots.conf not found -> assume no Playerbots module
-        hasPlayerbots = false
-        return
-    end
-
-    -- Fallback method for older Eluna/ALE builds that don't have GetConfigValue
-    if type(GetCoreVersion) == "function" then
-        local version = GetCoreVersion()
-        hasPlayerbots = version and version:lower():find("playerbot") ~= nil
-        return
-    end
+-- Server generated RandomBot / RNDBot.
+local function isRandomBot(player)
+    if not HAS_PLAYERBOTS then return false end
+    return player:IsRandomBot()
 end
 
--- ==============================================================================================
--- RNDbot detection
--- ==============================================================================================
-function AccountWideUtils.isPlayerBotAccount(accountId)
-    AccountWideUtils.checkPlayerbotsModule()
-    if not hasPlayerbots then return false end
-
-    local cached = botAccountCache[accountId]
-    if cached ~= nil then return cached end
-
-    local result = CharDBQuery(string.format("SELECT 1 FROM acore_playerbots.playerbots_account_type WHERE account_id = %d LIMIT 1", accountId))
-    local isBot = result ~= nil
-    botAccountCache[accountId] = isBot
-    return isBot
+-- Server generated bot from the AddClass account pool.
+local function isAddClassBot(player)
+    if not HAS_PLAYERBOTS then return false end
+    return player:IsAddclassBot()
 end
 
-function AccountWideUtils.isPlayerBot(player)
-    AccountWideUtils.checkPlayerbotsModule()
-    if not hasPlayerbots then return false end
-
-    if type(player.IsBot) == "function" then
-        return player:IsBot()
-    end
-
-    -- Fallback if IsBot isn't available in this ALE build
-    local accountId = player:GetAccountId()
-    return AccountWideUtils.isPlayerBotAccount(accountId)
+-- Bot-controlled character whose master is client based (a regular player or SelfBot).
+-- Playerbots also classifies AddClass bots as AltBots.
+local function isAltBotCharacter(player)
+    if not HAS_PLAYERBOTS then return false end
+    return player:IsAltBot()
 end
 
--- ==============================================================================================
--- Altbot detection
--- "Altbot" = another character on the same account online at the same time.
--- ==============================================================================================
-function AccountWideUtils.isAltBotCharacter(player)
-    AccountWideUtils.checkPlayerbotsModule()
-    if not hasPlayerbots then return false end
-    if AccountWideUtils.isPlayerBot(player) then return false end
-
-    local accountId = player:GetAccountId()
-    local count = onlineCount[accountId] or 0
-    if count <= 1 then return false end  -- solo online => never an Altbot
-
-    local set = onlineByAccount[accountId]
-    if not set then return false end
-
-    local anchor = primaryByAccount[accountId]
-    if not anchor or not set[anchor] then
-        -- Pick deterministic anchor (lowest guid among online chars)
-        local lowest
-        for g,_ in pairs(set) do
-            if not lowest or g < lowest then
-                lowest = g
-            end
-        end
-        if not lowest then return false end
-        anchor = lowest
-        primaryByAccount[accountId] = anchor
-    end
-    return player:GetGUIDLow() ~= anchor
-end
-
-function AccountWideUtils.noteLogin(player)
-    local accountId = player:GetAccountId()
-    local guid = player:GetGUIDLow()
-
-    local set = onlineByAccount[accountId]
-    if not set then
-        set = {}
-        onlineByAccount[accountId] = set
-        onlineCount[accountId] = 0
-    end
-
-    if not set[guid] then
-        set[guid] = true
-        onlineCount[accountId] = (onlineCount[accountId] or 0) + 1
-    end
-
-    if not primaryByAccount[accountId] then
-        primaryByAccount[accountId] = guid
-    end
-end
-
-function AccountWideUtils.noteLogout(accountId, guid)
-    local set = onlineByAccount[accountId]
-    if not set or not set[guid] then return end
-
-    set[guid] = nil
-    onlineCount[accountId] = (onlineCount[accountId] or 1) - 1
-
-    if onlineCount[accountId] <= 0 then
-        onlineByAccount[accountId] = nil
-        onlineCount[accountId] = nil
-        primaryByAccount[accountId] = nil
-        return
-    end
-
-    -- If the anchor logged out, pick a new anchor deterministically (lowest guid)
-    if primaryByAccount[accountId] == guid then
-        local lowest
-        for g,_ in pairs(set) do
-            if not lowest or g < lowest then lowest = g end
-        end
-        primaryByAccount[accountId] = lowest
-    end
-end
 
 -- ==============================================================================================
 -- Gates used by Accountwide scripts
 -- ==============================================================================================
-function AccountWideUtils.shouldSkipAll(player)
-    -- RNDbots: never process in accountwide systems
-    if AccountWideUtils.isPlayerBot(player) then return true end
 
-    -- Altbots: optionally skip completely
-    if EXCLUDE_ALTBOTS_FULL and AccountWideUtils.isAltBotCharacter(player) then return true end
+function AccountWideUtils.shouldSkipAll(player)
+    if not HAS_PLAYERBOTS then return false end
+
+    -- RNDBots: server generated
+    -- never process in accountwide systems
+    if isRandomBot(player) then return true end
+
+    -- AddClass bots: server generated
+    -- never process in accountwide systems
+    if isAddClassBot(player) then return true end
+
+    -- AltBots: optionally skip completely
+    if EXCLUDE_ALTBOTS_COMPLETELY and isAltBotCharacter(player) then return true end
 
     return false
 end
 
 function AccountWideUtils.shouldDoDownsync(player)
-    local accountId = player:GetAccountId()
-    local count = onlineCount[accountId] or 0
+    if not HAS_PLAYERBOTS then return true end
 
-    -- Solo online -> always allow
-    if count <= 1 then return true end
+    -- RNDBots and AddClass bots should never perform AccountWide downsync
+    if isRandomBot(player) or isAddClassBot(player) then return false end
 
-    -- Otherwise, only the anchored primary can down-sync
-    if EXCLUDE_ALTBOTS then
-        local anchor = primaryByAccount[accountId]
-        if not anchor then
-            anchor = player:GetGUIDLow()
-            primaryByAccount[accountId] = anchor
-        end
-        return player:GetGUIDLow() == anchor
-    end
+    -- AltBots may contribute changes, but when EXCLUDE_ALTBOTS_FROM_DOWNSYNC is enabled,
+    -- they are not allowed to push account state back down onto themselves.
+    if EXCLUDE_ALTBOTS_FROM_DOWNSYNC and isAltBotCharacter(player) then return false end
 
     return true
 end
+
+
+-- ==============================================================================================
+-- General helpers
+-- ==============================================================================================
 
 function AccountWideUtils.csv(list, emptyValue)
     if not list or #list == 0 then return emptyValue or "0" end
@@ -229,20 +121,3 @@ function AccountWideUtils.insertValuesInBatches(insertPrefix, rowValues, batchSi
         CharDBExecute(insertPrefix .. table.concat(chunk, ","))
     end
 end
-
--- ==============================================================================================
--- Presence tracking
--- Keeps online-account state accurate even if a specific feature script is disabled.
--- ==============================================================================================
-local function PresenceOnLogin(event, player)
-    if AccountWideUtils.isPlayerBot(player) then return end
-    AccountWideUtils.noteLogin(player)
-end
-
-local function PresenceOnLogout(event, player)
-    if AccountWideUtils.isPlayerBot(player) then return end
-    AccountWideUtils.noteLogout(player:GetAccountId(), player:GetGUIDLow())
-end
-
-RegisterPlayerEvent(3, PresenceOnLogin)   -- EVENT_ON_LOGIN
-RegisterPlayerEvent(4, PresenceOnLogout)  -- EVENT_ON_LOGOUT

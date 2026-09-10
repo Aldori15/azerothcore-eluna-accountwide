@@ -130,7 +130,7 @@ local function SyncCurrencyOnLogin(player, accountId)
 end
 
 local function AccountWideCurrency(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()

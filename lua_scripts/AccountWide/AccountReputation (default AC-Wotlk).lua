@@ -482,7 +482,7 @@ local function SeedAccountReputationIfNeeded(player)
 end
 
 local function SetReputationOnSave(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -702,7 +702,7 @@ local function upsertManyForGuid(guid, factionToAdjustedStanding)
 end
 
 local function SetReputationOnCharacterCreate(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()
@@ -774,7 +774,7 @@ local function SetReputationOnCharacterCreate(event, player)
 end
 
 local function OnReputationChange(event, player, factionId, standing, incremental)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     MarkFactionDirty(player:GetGUIDLow(), factionId)

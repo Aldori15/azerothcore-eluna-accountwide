@@ -91,7 +91,7 @@ local function seedIfEmpty(accountId, player, accountSet)
 end
 
 local function GrantAccountwideTitlesOnLogin(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     if ANNOUNCE_ON_LOGIN then
@@ -112,7 +112,7 @@ local function GrantAccountwideTitlesOnLogin(event, player)
 end
 
 local function SyncTitlesOnLogout(event, player)
-    -- Skip playerbot accounts
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return end
 
     local accountId = player:GetAccountId()

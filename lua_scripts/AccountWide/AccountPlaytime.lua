@@ -75,7 +75,7 @@ local function FormatSeconds(totalSeconds)
 end
 
 local function HandleAccountPlaytime(player)
-    -- Always skip RNDBots / AltBots
+    -- Skip bot types excluded by AccountWideUtils
     if AUtils.shouldSkipAll and AUtils.shouldSkipAll(player) then return false end
 
     local accountId = player:GetAccountId()
